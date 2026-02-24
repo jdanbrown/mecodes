@@ -23,6 +23,11 @@ Personal "Claude Code Web" alternative using `opencode serve` + custom frontends
 - Comments: very sparingly, focus on "why" not "what"
 - Don't add comments about removed code — future readers don't care
 
+## Python style
+- No empty `__init__.py` files (that's a py2 thing)
+- Order code top-down: public API / endpoints first, models and helpers below
+  - Reader should encounter purpose before details, not the other way around
+
 ## Key APIs to know
 - OpenCode REST + SSE API: the frontend talks to this directly for all session/chat operations
 - Sidecar API (`/mgmt/...`): git lifecycle, resource management, orphan detection

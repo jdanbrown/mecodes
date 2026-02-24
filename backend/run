@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== ocweb entrypoint ==="
+
+# Ensure volume dirs exist
+mkdir -p /vol/projects /vol/opencode-state
+
+# Start opencode serve (background)
+echo "Starting opencode serve..."
+opencode serve --hostname 0.0.0.0 --port 4096 &
+OPENCODE_PID=$!
+
+# Start sidecar (background)
+echo "Starting sidecar..."
+/opt/sidecar/.venv/bin/uvicorn sidecar.app:app \
+  --host 0.0.0.0 --port 4097 --log-level info &
+SIDECAR_PID=$!
+
+# Wait for opencode to be ready
+for i in $(seq 1 30); do
+  if curl -sf http://localhost:4096/health > /dev/null 2>&1; then
+    echo "opencode serve is ready"
+    break
+  fi
+  sleep 1
+done
+
+# Start Caddy (foreground — the main process)
+echo "Starting Caddy..."
+exec caddy run --config /etc/caddy/Caddyfile

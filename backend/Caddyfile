@@ -1,0 +1,23 @@
+{
+	# Fly.io terminates TLS at the edge, so Caddy sees HTTP on :8080
+	# We don't need Caddy's auto-TLS here
+	auto_https off
+}
+
+:8080 {
+	# HTTP Basic Auth — password is bcrypt-hashed via `caddy hash-password`
+	# Env vars: CADDY_AUTH_USER, CADDY_AUTH_HASH
+	basicauth * {
+		{$CADDY_AUTH_USER} {$CADDY_AUTH_HASH}
+	}
+
+	# Sidecar API
+	handle /mgmt/* {
+		reverse_proxy localhost:4097
+	}
+
+	# Everything else → opencode serve (including the catch-all web UI proxy)
+	handle {
+		reverse_proxy localhost:4096
+	}
+}

@@ -101,6 +101,40 @@ POST   /mgmt/processes/{pid}/kill
 - Talks to sidecar API for git/resource management
 - Concurrency: multiple tabs/reconnects → broadcast pattern, last-write-wins on input
 
+## Implementation notes
+
+### Container layout
+Single Dockerfile, three processes managed by `entrypoint.sh`:
+1. **Caddy** on `:8080` (Fly terminates TLS at edge, so no auto-HTTPS needed)
+2. **opencode serve** on `:4096` (`--hostname 0.0.0.0`, `OPENCODE_SERVER_PASSWORD` unset)
+3. **Sidecar** (Python/FastAPI/uvicorn) on `:4097`
+
+Caddy is the foreground process (`exec`); opencode and sidecar are backgrounded.
+
+### Caddy routing
+- `/mgmt/*` → sidecar `:4097`
+- Everything else → opencode `:4096` (includes the catch-all `app.opencode.ai` web UI proxy)
+
+### Fly config
+- Region `sjc`, `shared-cpu-2x` / 1GB RAM
+- Volume `ocweb_vol` at `/vol`
+- `OPENCODE_HOME=/vol/opencode-state` — puts SQLite on persistent volume
+- `auto_stop_machines = "off"`, `min_machines_running = 1`
+
+### Secrets (set via `fly secrets set`)
+- `CADDY_AUTH_USER` — HTTP basic auth username
+- `CADDY_AUTH_HASH` — bcrypt hash (generate with `caddy hash-password`)
+- `GITHUB_USER` — for git clone auth
+- `GITHUB_TOKEN` — GitHub PAT for private repo access
+- `OPENROUTER_API_KEY` — (or whichever provider env opencode needs)
+
+### Sidecar implementation
+- Python + FastAPI, chosen for speed of development
+- Bare clones in `/vol/projects/repos/`, worktrees in `/vol/projects/worktrees/`
+- Repo dirs use `owner__name` convention (slash-safe)
+- Worktree dirs use `owner__name__sessionId`
+- FastAPI auto-docs at `/mgmt/docs`
+
 ## OpenCode internals (reference)
 - TypeScript, runs on Bun, Hono web framework
 - Repo: `anomalyco/opencode`
