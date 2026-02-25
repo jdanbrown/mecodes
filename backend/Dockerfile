@@ -28,6 +28,6 @@ RUN python3 -m venv sidecar/.venv \
 # Volume mount point
 RUN mkdir -p /vol/projects /vol/opencode-state
 
-EXPOSE 443 80
+EXPOSE 8080
 
 ENTRYPOINT ["/opt/ocweb/run"]

@@ -43,35 +43,41 @@ So the frontend can talk to the opencode API directly. No orchestrator/proxy nee
 A small service for things opencode doesn't expose.
 
 ### Git management
-- Hardcoded GitHub username, API token injected via secrets
-- List user's repos via GitHub API for the frontend to pick from
-- **Clone cache**: clone repo on first use, reuse across sessions
+- GitHub username hardcoded in fly.toml, API token injected via secrets
+- **Clone cache**: bare-clone repo on first use, reuse across sessions
 - **Worktree per session**: each chat gets a git worktree keyed by opencode session ID
 - On new chat: clone if needed → create worktree → tell opencode to work in that dir
 
-### Resource dashboard
-Frontend page showing:
-- Cloned repos (with delete)
-- Worktrees / session dirs (with delete)
-- Disk usage
-- Running opencode sessions (via opencode API)
-- **Orphaned processes**: `ps` for PPID=1, filter known services, surface with kill buttons
+### Resource management
+- Cloned repos: list, delete
+- Worktrees / session dirs: list, delete
+- Disk usage (volume stats)
+- Orphan process detection (`ps` for PPID=1, filter known services) + kill
+- Garbage collection (prune stale worktrees)
 
-### Sidecar API (draft)
+### Not yet implemented
+- List user's repos via GitHub API (currently must specify `owner/name` manually)
+- Frontend resource dashboard UI (endpoints exist, no UI yet)
+- Running opencode sessions in the resource view (query opencode API from frontend)
+
+### Sidecar API
 ```
-POST   /admin/repos/clone     {repo: "owner/name"}
-DELETE /admin/repos/{repo}
+POST   /admin/repos/clone                          {repo: "owner/name"}
+DELETE /admin/repos/{owner}/{name}
 GET    /admin/repos
 
-POST   /admin/worktrees       {repo, sessionId}
-DELETE /admin/worktrees/{id}
+POST   /admin/worktrees                            {repo, session_id, branch?}
+DELETE /admin/worktrees/{owner}/{name}/{session_id}
 GET    /admin/worktrees
 
 GET    /admin/disk
 POST   /admin/gc
-GET    /admin/processes        (orphan detection)
+GET    /admin/processes                             (orphan detection)
 POST   /admin/processes/{pid}/kill
+GET    /admin/health
 ```
+
+Auto-generated OpenAPI docs at `/admin/docs`.
 
 ### Process cleanup notes
 - Always use the opencode API to stop sessions (`POST /session/:id/abort`, `POST /instance/dispose`), never raw `kill`
@@ -80,7 +86,7 @@ POST   /admin/processes/{pid}/kill
 - On Fly this is fine since deploys replace the VM
 
 ## Hosting: Fly.io
-- 1 machine + 1 volume, estimated ~$5-15/mo
+- 1 machine (`shared-cpu-2x`, 1GB RAM) + 1 volume (10GB), estimated ~$5-15/mo
 - **`auto_stop_machines = "off"`** — critical, otherwise Fly kills the machine mid-task
 - Volume is single-attach (fine for 1 machine)
 - Health check endpoint on sidecar/caddy, not on opencode child processes
@@ -119,11 +125,10 @@ server and its API calls reach opencode directly.
 ### Startup timeline (~23s)
 1. Fly starts VM, mounts volume, runs `/opt/ocweb/run`
 2. `run` hashes `CADDY_AUTH_PASSWORD` via `caddy hash-password` (~1-2s)
-3. opencode + sidecar start in background
-4. Sidecar ready on `:4097` (~18s)
-5. opencode does SQLite migration on first boot, then ready on `:4096` (~20s)
-6. `run` health-check loop detects opencode, starts Caddy on `:8080` (~22s)
-7. `fly deploy` always warns "not listening on :8080" because it checks before startup finishes — harmless
+3. opencode + sidecar start in background (sidecar is ready almost instantly)
+4. opencode does SQLite migration on first boot, then ready on `:4096` (~20s)
+5. `run` health-check loop detects opencode, starts Caddy on `:8080` (~22s)
+6. `fly deploy` always warns "not listening on :8080" because it checks before startup finishes — harmless
 
 ### Secrets (set via `fly secrets set`)
 - `CADDY_AUTH_USER` — HTTP basic auth username
@@ -140,7 +145,6 @@ server and its API calls reach opencode directly.
 - Bare clones in `/vol/projects/repos/`, worktrees in `/vol/projects/worktrees/`
 - Repo dirs use `owner__name` convention (slash-safe)
 - Worktree dirs use `owner__name__sessionId`
-- FastAPI auto-docs at `/admin/docs`
 
 ## Deploy
 
@@ -168,6 +172,5 @@ fly deploy
 - Catch-all route proxies unmatched paths to `app.opencode.ai` (how built-in web UI works)
 - Built-in web UI uses `location.origin` as API base URL (`packages/app/src/entry.tsx`)
   - So it only works when served from the same origin as the API (no path prefix support)
-  - Our frontend will use the SDK with `baseUrl: "/oc"` instead
 - The npm package uses a `#!/usr/bin/env node` shebang, so `node` must exist on PATH
   - We symlink bun as node in the Dockerfile
