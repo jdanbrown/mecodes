@@ -15,6 +15,18 @@ GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 app = FastAPI(title="ocweb sidecar", docs_url="/mgmt/docs", openapi_url="/mgmt/openapi.json")
 
 
+# --- Models (must precede endpoints — FastAPI evaluates type annotations eagerly) ---
+
+class CloneRequest(BaseModel):
+    repo: str  # "owner/name"
+
+
+class WorktreeRequest(BaseModel):
+    repo: str
+    session_id: str
+    branch: str = "main"
+
+
 # --- Repo endpoints ---
 
 @app.post("/mgmt/repos/clone")
@@ -115,7 +127,7 @@ def disk_usage():
 @app.get("/mgmt/processes")
 def orphan_processes():
     """Find processes whose parent is PID 1 (orphans), excluding known services."""
-    known = {"caddy", "opencode", "uvicorn", "python3", "entrypoint.sh"}
+    known = {"caddy", "opencode", "uvicorn", "python3", "run"}
     result = _run(["ps", "-eo", "pid,ppid,comm,args", "--no-headers"])
     if result.returncode != 0:
         return {"orphans": []}
@@ -161,18 +173,6 @@ def garbage_collect():
 @app.get("/mgmt/health")
 def health():
     return {"status": "ok"}
-
-
-# --- Models ---
-
-class CloneRequest(BaseModel):
-    repo: str  # "owner/name"
-
-
-class WorktreeRequest(BaseModel):
-    repo: str
-    session_id: str
-    branch: str = "main"
 
 
 # --- Helpers ---

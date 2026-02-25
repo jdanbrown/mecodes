@@ -27,6 +27,7 @@ Personal "Claude Code Web" alternative using `opencode serve` + custom frontends
 - No empty `__init__.py` files (that's a py2 thing)
 - Order code top-down: public API / endpoints first, models and helpers below
   - Reader should encounter purpose before details, not the other way around
+  - Exception: types/models must be defined before they're referenced, so they go above endpoints
 
 ## Key APIs to know
 - OpenCode REST + SSE API: the frontend talks to this directly for all session/chat operations

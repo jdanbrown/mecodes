@@ -14,23 +14,20 @@ RUN curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o /us
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
-# OpenCode
-RUN bun install -g opencode-ai@latest
+# OpenCode (the npm package shebang uses `node`, so symlink bun as node)
+RUN bun install -g opencode-ai@latest \
+  && ln -s /root/.bun/bin/bun /usr/local/bin/node
 
-# Sidecar (Python + FastAPI)
-COPY sidecar/ /opt/sidecar/
-RUN python3 -m venv /opt/sidecar/.venv \
-  && /opt/sidecar/.venv/bin/pip install --no-cache-dir -r /opt/sidecar/requirements.txt
-
-# Config files
-COPY Caddyfile /etc/caddy/Caddyfile
-COPY run /run
-RUN chmod a+x /run
+# All our files live under /opt/ocweb
+WORKDIR /opt/ocweb
+COPY . .
+RUN chmod a+x run
+RUN python3 -m venv sidecar/.venv \
+  && sidecar/.venv/bin/pip install --no-cache-dir -r sidecar/requirements.txt
 
 # Volume mount point
 RUN mkdir -p /vol/projects /vol/opencode-state
 
-# Ports: Caddy HTTPS (443) and HTTP (80, for redirect)
 EXPOSE 443 80
 
-ENTRYPOINT ["/run"]
+ENTRYPOINT ["/opt/ocweb/run"]
