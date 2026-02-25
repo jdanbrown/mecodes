@@ -1,21 +1,29 @@
 {
 	# Fly.io terminates TLS at the edge, so Caddy sees HTTP on :8080
-	# We don't need Caddy's auto-TLS here
 	auto_https off
 }
 
 :8080 {
 	# HTTP Basic Auth — CADDY_AUTH_HASH is computed from CADDY_AUTH_PASSWORD at startup
-	basicauth * {
+	basic_auth * {
 		{$CADDY_AUTH_USER} {$CADDY_AUTH_HASH}
 	}
 
 	# Sidecar API
-	handle /mgmt/* {
+	handle /admin/* {
 		reverse_proxy localhost:4097
 	}
 
-	# Everything else → opencode serve (including the catch-all web UI proxy)
+	# Our frontend (static files), falling through to opencode API.
+	# try_files serves our file if it exists, otherwise proxies to opencode.
+	# This lets / serve our index.html while /session/*, /event, etc. reach the API.
+	# app.opencode.ai also works: point it at this server, API routes pass through,
+	# and its own assets come from app.opencode.ai directly (not from our static files).
+	root * /opt/ocweb/frontend
+	@static file
+	handle @static {
+		file_server
+	}
 	handle {
 		reverse_proxy localhost:4096
 	}

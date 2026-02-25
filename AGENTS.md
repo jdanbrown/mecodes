@@ -1,7 +1,7 @@
 # Project context
 Personal "Claude Code Web" alternative using `opencode serve` + custom frontends
-- Use `DESIGN.md` to understand and document design, architecture, tradeoffs, decisions, etc.
-- Update `DESIGN.md` as we go so that we keep it evergreen and always up to date
+- Use `README.md` to understand and document design, architecture, tradeoffs, decisions, etc.
+- Update `README.md` as we go so that we keep it evergreen and always up to date
 
 # Working style
 - This is a personal-use project — optimize for simplicity and speed over polish
@@ -31,7 +31,7 @@ Personal "Claude Code Web" alternative using `opencode serve` + custom frontends
 
 ## Key APIs to know
 - OpenCode REST + SSE API: the frontend talks to this directly for all session/chat operations
-- Sidecar API (`/mgmt/...`): git lifecycle, resource management, orphan detection
+- Sidecar API (`/admin/...`): git lifecycle, resource management, orphan detection
 - Always use the opencode API to stop sessions, never raw `kill`
 
 ## Searching docs and examples

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ocweb</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    a { color: #58a6ff; }
+    .status { margin-top: 1rem; padding: 1rem; background: #161b22; border-radius: 8px; }
+    .ok { color: #3fb950; }
+    .err { color: #f85149; }
+    pre { font-size: 0.85rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>ocweb</h1>
+  <p>opencode API: <a href="/oc/health">/oc/health</a> | sidecar: <a href="/admin/health">/admin/health</a></p>
+  <div class="status" id="status">checking...</div>
+  <script>
+    async function check(url, label) {
+      try {
+        const r = await fetch(url);
+        const data = await r.json();
+        return `<span class="ok">✓</span> ${label}: ${JSON.stringify(data)}`;
+      } catch (e) {
+        return `<span class="err">✗</span> ${label}: ${e.message}`;
+      }
+    }
+    Promise.all([
+      check("/oc/health", "opencode"),
+      check("/admin/health", "sidecar"),
+    ]).then(results => {
+      document.getElementById("status").innerHTML = "<pre>" + results.join("\n") + "</pre>";
+    });
+  </script>
+</body>
+</html>

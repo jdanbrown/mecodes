@@ -12,7 +12,7 @@ PROJECTS_DIR = os.environ.get("OCWEB_PROJECTS_DIR", "/vol/projects")
 GITHUB_USER = os.environ.get("GITHUB_USER", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
-app = FastAPI(title="ocweb sidecar", docs_url="/mgmt/docs", openapi_url="/mgmt/openapi.json")
+app = FastAPI(title="ocweb sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json")
 
 
 # --- Models (must precede endpoints — FastAPI evaluates type annotations eagerly) ---
@@ -29,7 +29,7 @@ class WorktreeRequest(BaseModel):
 
 # --- Repo endpoints ---
 
-@app.post("/mgmt/repos/clone")
+@app.post("/admin/repos/clone")
 def clone_repo(req: CloneRequest):
     dest = _repo_dir(req.repo)
     if os.path.exists(dest):
@@ -41,7 +41,7 @@ def clone_repo(req: CloneRequest):
     return {"status": "cloned", "path": dest}
 
 
-@app.delete("/mgmt/repos/{owner}/{name}")
+@app.delete("/admin/repos/{owner}/{name}")
 def delete_repo(owner: str, name: str):
     dest = _repo_dir(f"{owner}/{name}")
     if not os.path.exists(dest):
@@ -50,7 +50,7 @@ def delete_repo(owner: str, name: str):
     return {"status": "deleted"}
 
 
-@app.get("/mgmt/repos")
+@app.get("/admin/repos")
 def list_repos():
     repos_dir = os.path.join(PROJECTS_DIR, "repos")
     if not os.path.exists(repos_dir):
@@ -62,7 +62,7 @@ def list_repos():
 
 # --- Worktree endpoints ---
 
-@app.post("/mgmt/worktrees")
+@app.post("/admin/worktrees")
 def create_worktree(req: WorktreeRequest):
     bare = _repo_dir(req.repo)
     if not os.path.exists(bare):
@@ -78,7 +78,7 @@ def create_worktree(req: WorktreeRequest):
     return {"status": "created", "path": dest}
 
 
-@app.delete("/mgmt/worktrees/{owner}/{name}/{session_id}")
+@app.delete("/admin/worktrees/{owner}/{name}/{session_id}")
 def delete_worktree(owner: str, name: str, session_id: str):
     bare = _repo_dir(f"{owner}/{name}")
     dest = _worktree_dir(f"{owner}/{name}", session_id)
@@ -90,7 +90,7 @@ def delete_worktree(owner: str, name: str, session_id: str):
     return {"status": "deleted"}
 
 
-@app.get("/mgmt/worktrees")
+@app.get("/admin/worktrees")
 def list_worktrees():
     wt_dir = os.path.join(PROJECTS_DIR, "worktrees")
     if not os.path.exists(wt_dir):
@@ -111,7 +111,7 @@ def list_worktrees():
 
 # --- Disk & process endpoints ---
 
-@app.get("/mgmt/disk")
+@app.get("/admin/disk")
 def disk_usage():
     result = _run(["du", "-sh", PROJECTS_DIR])
     total = result.stdout.strip().split("\t")[0] if result.returncode == 0 else "unknown"
@@ -124,7 +124,7 @@ def disk_usage():
     }
 
 
-@app.get("/mgmt/processes")
+@app.get("/admin/processes")
 def orphan_processes():
     """Find processes whose parent is PID 1 (orphans), excluding known services."""
     known = {"caddy", "opencode", "uvicorn", "python3", "run"}
@@ -143,7 +143,7 @@ def orphan_processes():
     return {"orphans": orphans}
 
 
-@app.post("/mgmt/processes/{pid}/kill")
+@app.post("/admin/processes/{pid}/kill")
 def kill_process(pid: int):
     try:
         os.kill(pid, 15)  # SIGTERM
@@ -154,7 +154,7 @@ def kill_process(pid: int):
     return {"status": "killed", "pid": pid}
 
 
-@app.post("/mgmt/gc")
+@app.post("/admin/gc")
 def garbage_collect():
     """Prune worktrees for repos, remove orphan worktree dirs."""
     repos_dir = os.path.join(PROJECTS_DIR, "repos")
@@ -170,7 +170,7 @@ def garbage_collect():
     return {"pruned": pruned}
 
 
-@app.get("/mgmt/health")
+@app.get("/admin/health")
 def health():
     return {"status": "ok"}
 
