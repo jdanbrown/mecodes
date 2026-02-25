@@ -1,11 +1,11 @@
-app = "ocweb"
+app = "ocweb-jdanbrown"
 primary_region = "sjc"
 
 [build]
 
 [env]
-  # opencode state lives on the volume
   OPENCODE_HOME = "/vol/opencode-state"
+  GITHUB_USER = "jdanbrown"
 
 [http_service]
   internal_port = 8080

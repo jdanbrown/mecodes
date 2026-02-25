@@ -6,6 +6,9 @@ echo "=== ocweb entrypoint ==="
 # Ensure volume dirs exist
 mkdir -p /vol/projects /vol/opencode-state
 
+# Hash the plaintext password for Caddy's basicauth
+export CADDY_AUTH_HASH=$(caddy hash-password --plaintext "$CADDY_AUTH_PASSWORD")
+
 # Start opencode serve (background)
 echo "Starting opencode serve..."
 opencode serve --hostname 0.0.0.0 --port 4096 &

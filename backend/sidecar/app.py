@@ -5,16 +5,11 @@ import os
 import shutil
 import subprocess
 
-import yaml
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-CONFIG_PATH = os.environ.get("OCWEB_CONFIG", "/etc/ocweb/config.yaml")
-with open(CONFIG_PATH) as f:
-    config = yaml.safe_load(f)
-
 PROJECTS_DIR = os.environ.get("OCWEB_PROJECTS_DIR", "/vol/projects")
-GITHUB_USER = config.get("github", {}).get("user", "")
+GITHUB_USER = os.environ.get("GITHUB_USER", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
 app = FastAPI(title="ocweb sidecar", docs_url="/mgmt/docs", openapi_url="/mgmt/openapi.json")

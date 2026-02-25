@@ -1,26 +1,19 @@
 # ocweb
 Personal service to run opencode on the web like claude code, with custom frontend/mobile
-- See AGENTS.md for agent instructions
-- See DESIGN.md for system design
+- See [AGENTS.md](AGENTS.md) for agent instructions
+- See [DESIGN.md](DESIGN.md) for system design
 
-## Deploy
-
-Hosted on Fly.io, org `jdanbrown`, app `ocweb`.
+## Deploy (fly.io)
 
 ```bash
-cd backend
+cd backend/
 
-# First time: create app + volume (already done)
-fly apps create ocweb --org jdanbrown
-fly volumes create ocweb_vol --region sjc --size 10 --app ocweb
+# First time: create app + volume
+fly apps create ocweb-jdanbrown --org jdanbrown
+fly volumes create ocweb_vol --app ocweb-jdanbrown --region sjc --size 10
 
 # Set secrets
-fly secrets set \
-  CADDY_AUTH_USER=... \
-  CADDY_AUTH_HASH='...' \
-  GITHUB_TOKEN=... \
-  OPENROUTER_API_KEY=... \
-  --app ocweb
+fly secrets set --app ocweb-jdanbrown CADDY_AUTH_USER=... CADDY_AUTH_PASSWORD=... GITHUB_TOKEN=... OPENROUTER_API_KEY=...
 
 # Deploy
 fly deploy

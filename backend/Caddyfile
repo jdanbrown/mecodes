@@ -5,8 +5,7 @@
 }
 
 :8080 {
-	# HTTP Basic Auth — password is bcrypt-hashed via `caddy hash-password`
-	# Env vars: CADDY_AUTH_USER, CADDY_AUTH_HASH
+	# HTTP Basic Auth — CADDY_AUTH_HASH is computed from CADDY_AUTH_PASSWORD at startup
 	basicauth * {
 		{$CADDY_AUTH_USER} {$CADDY_AUTH_HASH}
 	}

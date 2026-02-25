@@ -24,7 +24,6 @@ RUN python3 -m venv /opt/sidecar/.venv \
 
 # Config files
 COPY Caddyfile /etc/caddy/Caddyfile
-COPY config.yaml /etc/ocweb/config.yaml
 COPY run /run
 RUN chmod a+x /run
 
