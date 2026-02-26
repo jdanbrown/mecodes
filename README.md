@@ -146,6 +146,12 @@ server and its API calls reach opencode directly.
 - Repo dirs use `owner__name` convention (slash-safe)
 - Worktree dirs use `owner__name__sessionId`
 
+## Local dev
+
+```bash
+uv venv && uv pip install -r requirements.txt
+```
+
 ## Deploy
 
 ```bash
