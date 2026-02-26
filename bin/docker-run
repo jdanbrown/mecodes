@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -eu
+
+function show_cmd() {
+  black="`tput setaf 0`"
+  off="`tput sgr0`"
+  echo -e "$black\$" "$@" "$off" >&2
+  "$@"
+}
+
+function isatty() {
+  [ -t 1 ]
+}
+
+if isatty; then
+  DOCKER_OPTS="${DOCKER_OPTS:-} -it"
+fi
+
+show_cmd docker run \
+    --rm \
+    -v /tmp:/tmp \
+    -v "$PWD":"$PWD":ro \
+    -w "$PWD" \
+    ${DOCKER_OPTS:-} \
+    'mecodes' \
+    "$@"

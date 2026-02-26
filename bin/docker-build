@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -eu
+
+function show_cmd() {
+  black="`tput setaf 0`"
+  off="`tput sgr0`"
+  echo -e "$black\$" "$@" "$off" >&2
+  "$@"
+}
+
+show_cmd docker build . -t 'mecodes'

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -eu
+
+bin="$(dirname "$0")"
+
+DOCKER_OPTS="${DOCKER_OPTS:-} --entrypoint bash" "$bin/docker-run" "$@"
