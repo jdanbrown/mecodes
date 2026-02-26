@@ -1,0 +1,6 @@
+{
+  // Resolve imports from the local venv
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12"
+}
