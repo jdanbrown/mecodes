@@ -1,5 +1,5 @@
 .git
 *.md
-.ocweb.code-workspace
+*.code-workspace
 __pycache__
 *.pyc

@@ -18,8 +18,8 @@ ENV PATH="/root/.bun/bin:${PATH}"
 RUN bun install -g opencode-ai@latest \
   && ln -s /root/.bun/bin/bun /usr/local/bin/node
 
-# All our files live under /opt/ocweb
-WORKDIR /opt/ocweb
+# All our files live under /opt/mecodes
+WORKDIR /opt/mecodes
 COPY . .
 RUN chmod a+x run
 RUN python3 -m venv sidecar/.venv \
@@ -30,4 +30,4 @@ RUN mkdir -p /vol/projects /vol/opencode-state
 
 EXPOSE 8080
 
-ENTRYPOINT ["/opt/ocweb/run"]
+ENTRYPOINT ["/opt/mecodes/run"]

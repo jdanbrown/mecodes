@@ -1,4 +1,4 @@
-# ocweb
+# mecodes
 Personal "Claude Code Web" alternative: opencode + OpenRouter, deployed for mobile/async use.
 
 - See [AGENTS.md](AGENTS.md) for agent instructions
@@ -107,7 +107,7 @@ Auto-generated OpenAPI docs at `/admin/docs`.
 ## Implementation notes
 
 ### Container layout
-Single Dockerfile, all files under `/opt/ocweb/`. Three processes managed by `run`:
+Single Dockerfile, all files under `/opt/mecodes/`. Three processes managed by `run`:
 1. **opencode serve** on `:4096` (`--hostname 0.0.0.0`, `OPENCODE_SERVER_PASSWORD` unset)
 2. **Sidecar** (Python/FastAPI/uvicorn) on `:4097`
 3. **Caddy** on `:8080` (foreground via `exec`; Fly terminates TLS at edge)
@@ -123,7 +123,7 @@ the opencode API. The built-in opencode web UI also works: point `app.opencode.a
 server and its API calls reach opencode directly.
 
 ### Startup timeline (~23s)
-1. Fly starts VM, mounts volume, runs `/opt/ocweb/run`
+1. Fly starts VM, mounts volume, runs `/opt/mecodes/run`
 2. `run` hashes `CADDY_AUTH_PASSWORD` via `caddy hash-password` (~1-2s)
 3. opencode + sidecar start in background (sidecar is ready almost instantly)
 4. opencode does SQLite migration on first boot, then ready on `:4096` (~20s)
@@ -152,11 +152,11 @@ server and its API calls reach opencode directly.
 cd backend/
 
 # First time: create app + volume
-fly apps create ocweb-jdanbrown --org jdanbrown
-fly volumes create ocweb_vol --app ocweb-jdanbrown --region sjc --size 10
+fly apps create dancodes --org jdanbrown
+fly volumes create dancodes_vol --app dancodes --region iad --size 10
 
 # Set secrets
-fly secrets set --app ocweb-jdanbrown CADDY_AUTH_USER=... CADDY_AUTH_PASSWORD=... GITHUB_TOKEN=... OPENROUTER_API_KEY=...
+fly secrets set --app dancodes CADDY_AUTH_USER=... CADDY_AUTH_PASSWORD=... GITHUB_TOKEN=... OPENROUTER_API_KEY=...
 
 # Deploy
 fly deploy

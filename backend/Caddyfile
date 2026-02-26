@@ -19,7 +19,7 @@
 	# This lets / serve our index.html while /session/*, /event, etc. reach the API.
 	# app.opencode.ai also works: point it at this server, API routes pass through,
 	# and its own assets come from app.opencode.ai directly (not from our static files).
-	root * /opt/ocweb/frontend
+	root * /opt/mecodes/frontend
 	@static file
 	handle @static {
 		file_server

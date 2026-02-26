@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== ocweb entrypoint ==="
+echo "=== mecodes entrypoint ==="
 
 # Ensure volume dirs exist
 mkdir -p /vol/projects /vol/opencode-state
@@ -16,7 +16,7 @@ OPENCODE_PID=$!
 
 # Start sidecar (background)
 echo "Starting sidecar..."
-/opt/ocweb/sidecar/.venv/bin/uvicorn sidecar.app:app \
+/opt/mecodes/sidecar/.venv/bin/uvicorn sidecar.app:app \
   --host 0.0.0.0 --port 4097 --log-level info &
 SIDECAR_PID=$!
 
@@ -31,4 +31,4 @@ done
 
 # Start Caddy (foreground — the main process)
 echo "Starting Caddy..."
-exec caddy run --config /opt/ocweb/Caddyfile
+exec caddy run --config /opt/mecodes/Caddyfile

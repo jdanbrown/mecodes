@@ -1,5 +1,5 @@
 """
-ocweb sidecar — git lifecycle, disk usage, orphan process management.
+mecodes sidecar — git lifecycle, disk usage, orphan process management.
 """
 import os
 import shutil
@@ -8,11 +8,11 @@ import subprocess
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-PROJECTS_DIR = os.environ.get("OCWEB_PROJECTS_DIR", "/vol/projects")
+PROJECTS_DIR = os.environ.get("MECODES_PROJECTS_DIR", "/vol/projects")
 GITHUB_USER = os.environ.get("GITHUB_USER", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
-app = FastAPI(title="ocweb sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json")
+app = FastAPI(title="mecodes sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json")
 
 
 # --- Models (must precede endpoints — FastAPI evaluates type annotations eagerly) ---
@@ -71,7 +71,7 @@ def create_worktree(req: WorktreeRequest):
     if os.path.exists(dest):
         return {"status": "exists", "path": dest}
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    branch_name = f"ocweb/{req.session_id}"
+    branch_name = f"mecodes/{req.session_id}"
     result = _run(["git", "worktree", "add", "-b", branch_name, dest, req.branch], cwd=bare)
     if result.returncode != 0:
         raise HTTPException(status_code=500, detail=result.stderr)
