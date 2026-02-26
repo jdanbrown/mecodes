@@ -23,7 +23,7 @@ WORKDIR /opt/mecodes
 COPY . .
 RUN chmod a+x run
 RUN python3 -m venv sidecar/.venv \
-  && sidecar/.venv/bin/pip install --no-cache-dir -r sidecar/requirements.txt
+  && sidecar/.venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Volume mount point
 RUN mkdir -p /vol/projects /vol/opencode-state
