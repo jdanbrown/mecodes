@@ -149,8 +149,6 @@ server and its API calls reach opencode directly.
 ## Deploy
 
 ```bash
-cd backend/
-
 # First time: create app + volume
 fly apps create dancodes --org jdanbrown
 fly volumes create dancodes_vol --app dancodes --region iad --size 10
