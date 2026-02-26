@@ -21,7 +21,7 @@ RUN bun install -g opencode-ai@latest \
 # All our files live under /opt/mecodes
 WORKDIR /opt/mecodes
 COPY . .
-RUN chmod a+x run
+RUN chmod a+x bin/run
 RUN python3 -m venv sidecar/.venv \
   && sidecar/.venv/bin/pip install --no-cache-dir -r requirements.txt
 
@@ -30,4 +30,4 @@ RUN mkdir -p /vol/projects /vol/opencode-state
 
 EXPOSE 8080
 
-ENTRYPOINT ["/opt/mecodes/run"]
+ENTRYPOINT ["/opt/mecodes/bin/run"]
