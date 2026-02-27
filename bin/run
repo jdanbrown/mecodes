@@ -1,34 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== mecodes entrypoint ==="
+function show_cmd() {
+  black="`tput setaf 0`"
+  off="`tput sgr0`"
+  echo -e "$black\$" "$@" "$off" >&2
+  "$@"
+}
 
 # Ensure volume dirs exist
 mkdir -p /vol/projects /vol/opencode-state
 
 # Hash the plaintext password for Caddy's basic_auth
-export CADDY_AUTH_HASH=$(caddy hash-password --plaintext "$CADDY_AUTH_PASSWORD")
+# - Allow empty for local dev
+if [ -n "${CADDY_AUTH_PASSWORD:-}" ]; then
+  export CADDY_AUTH_HASH="$(caddy hash-password --plaintext "$CADDY_AUTH_PASSWORD")"
+fi
 
-# Start opencode serve (background)
-echo "Starting opencode serve..."
-opencode serve --hostname 0.0.0.0 --port 4096 &
+echo "Starting opencode (bg)"
+show_cmd opencode serve --hostname 0.0.0.0 --port 4096 &
 OPENCODE_PID=$!
 
-# Start sidecar (background)
-echo "Starting sidecar..."
-/opt/mecodes/sidecar/.venv/bin/uvicorn sidecar.app:app \
-  --host 0.0.0.0 --port 4097 --log-level info &
+echo "Starting sidebar (bg)"
+show_cmd /opt/mecodes/sidecar/.venv/bin/uvicorn sidecar.app:app --host 0.0.0.0 --port 4097 --log-level info &
 SIDECAR_PID=$!
 
-# Wait for opencode to be ready
-for i in $(seq 1 30); do
-  if curl -sf http://localhost:4096/health > /dev/null 2>&1; then
-    echo "opencode serve is ready"
+echo "Waiting for opencode to be ready..."
+for i in $(seq 1 60); do
+  if show_cmd curl -sf http://localhost:4096/health >/dev/null 2>&1; then
     break
   fi
-  sleep 1
+  sleep 0.5
 done
 
-# Start Caddy (foreground — the main process)
-echo "Starting Caddy..."
-exec caddy run --config /opt/mecodes/Caddyfile
+echo "Running caddy (fg)"
+show_cmd exec caddy run --config /opt/mecodes/Caddyfile
