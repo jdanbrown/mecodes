@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || 'main' }}
-          fetch-depth: ${{ fromJSON(inputs.rollback || '0') + 1 }}
+          fetch-depth: 20
 
       - name: Roll back if requested
         if: ${{ inputs.rollback != '' && inputs.rollback != '0' }}
