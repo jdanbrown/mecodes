@@ -154,23 +154,28 @@ server and its API calls reach opencode directly.
 uv venv && uv pip install -r requirements.txt
 ```
 
-## Deploy
+## Deploys
 
-One-time setup:
+### One-time setup
 ```bash
 fly apps create dancodes --org jdanbrown
 fly volumes create dancodes_vol --app dancodes --region iad --size 10
 fly secrets set --app dancodes CADDY_AUTH_USER=... CADDY_AUTH_PASSWORD=... GITHUB_TOKEN=... OPENROUTER_API_KEY=...
 ```
 
-Deploys happen automatically via GitHub Actions on push to `main`.
+### Deploys are automatic
+- Deploys happen automatically via GitHub Actions on push to `main`.
 
-To roll back (e.g. from phone): GitHub → Actions → "Deploy to Fly.io" → Run workflow
+### Rollbacks
+To rollback (e.g. from phone): GitHub → Actions → "Deploy to Fly.io" → Run workflow
 - Set `rollback` to `1` (previous commit), `2`, etc.
 - Or paste a specific commit SHA into `ref`
 - No rolling/blue-green deploys (single machine + volume), so broken deploys require manual rollback
 
-To deploy manually: `fly deploy`
+### To deploy manually
+```bash
+fly deploy
+```
 
 ## OpenCode internals (reference)
 - TypeScript, runs on Bun, Hono web framework
