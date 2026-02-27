@@ -7,9 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Commit SHA or branch to deploy (default: main)"
+        description: "Commit SHA to deploy (default: main HEAD)"
         required: false
         default: ""
+      rollback:
+        description: "Commits to roll back (e.g. 1 = previous commit)"
+        required: false
+        default: "0"
 
 jobs:
   deploy:
@@ -20,7 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref || 'main' }}
+          fetch-depth: ${{ fromJSON(inputs.rollback || '0') + 1 }}
+
+      - name: Roll back if requested
+        if: ${{ inputs.rollback != '' && inputs.rollback != '0' }}
+        run: git checkout HEAD~${{ inputs.rollback }}
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
