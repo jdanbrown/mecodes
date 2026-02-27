@@ -88,10 +88,9 @@ Auto-generated OpenAPI docs at `/admin/docs`.
 - 1 machine (`shared-cpu-2x`, 1GB RAM) + 1 volume (10GB), estimated ~$5-15/mo
 - **`auto_stop_machines = "off"`** — critical, otherwise Fly kills the machine mid-task
 - Volume is single-attach (fine for 1 machine)
-- Health check: Fly polls `/admin/health` (sidecar), which checks opencode liveness internally
-  - Unauthenticated in Caddy so Fly can reach it without credentials
-  - Returns 503 until the full stack (opencode + sidecar + caddy) is ready
-  - `bin/run` also waits for opencode before starting Caddy, so the endpoint is unreachable until opencode is live
+- Health check: `/admin/health` (sidecar) checks opencode liveness, unauthenticated in Caddy
+  - No ongoing Fly health checks (too noisy for personal use)
+  - `fly deploy` exits before the app is fully ready (~20s startup); rely on manual verification
 
 ## Frontend
 
@@ -131,7 +130,7 @@ server and its API calls reach opencode directly.
 3. opencode + sidecar start in background (sidecar is ready almost instantly)
 4. opencode does SQLite migration on first boot, then ready on `:4096` (~20s)
 5. `run` health-check loop detects opencode, starts Caddy on `:8080` (~22s)
-6. Fly health check polls `/admin/health` → deploy completes once the whole stack is up
+6. `fly deploy` exits early (before app is ready) — no deploy-time health check configured
 
 ### Secrets (set via `fly secrets set`)
 - `CADDY_AUTH_USER` — HTTP basic auth username
