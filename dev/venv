@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -eu
+
+function show_cmd() {
+  black="`tput setaf 0`"
+  off="`tput sgr0`"
+  echo -e "$black\$" "$@" "$off" >&2
+  "$@"
+}
+
+bin="$(dirname "$0")"
+
+show_cmd uv venv --allow-existing
+show_cmd uv pip install -r requirements.txt
+show_cmd uv pip list
