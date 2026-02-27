@@ -155,24 +155,22 @@ uv venv && uv pip install -r requirements.txt
 ```
 
 ## Deploy
+
+One-time setup:
 ```bash
-# First time: create app + volume
 fly apps create dancodes --org jdanbrown
 fly volumes create dancodes_vol --app dancodes --region iad --size 10
-
-# Set secrets
 fly secrets set --app dancodes CADDY_AUTH_USER=... CADDY_AUTH_PASSWORD=... GITHUB_TOKEN=... OPENROUTER_API_KEY=...
-
-# Deploy (normally via push to main → GitHub Actions)
-fly deploy
 ```
 
-### Rollback
-Push to `main` triggers deploy via GitHub Actions. To roll back from phone:
-- GitHub → Actions → "Deploy to Fly.io" → Run workflow
-- **Roll back N commits**: set `rollback` to e.g. `1` (previous commit), `2`, etc.
-- **Deploy specific SHA**: paste into `ref` field
+Deploys happen automatically via GitHub Actions on push to `main`.
+
+To roll back (e.g. from phone): GitHub → Actions → "Deploy to Fly.io" → Run workflow
+- Set `rollback` to `1` (previous commit), `2`, etc.
+- Or paste a specific commit SHA into `ref`
 - No rolling/blue-green deploys (single machine + volume), so broken deploys require manual rollback
+
+To deploy manually: `fly deploy`
 
 ## OpenCode internals (reference)
 - TypeScript, runs on Bun, Hono web framework
