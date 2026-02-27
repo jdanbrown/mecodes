@@ -22,7 +22,9 @@
   # app.opencode.ai also works: point it at this server, API routes pass through,
   # and its own assets come from app.opencode.ai directly (not from our static files).
   root * /opt/mecodes/frontend
-  @static file
+  @static file {
+    try_files {path} {path}/index.html
+  }
   handle @static {
     file_server
   }
