@@ -1,6 +1,5 @@
 # mecodes
 Personal "Claude Code Web" alternative: opencode + OpenRouter, deployed for mobile/async use.
-
 - See [AGENTS.md](AGENTS.md) for agent instructions
 
 ## Motivation
@@ -147,13 +146,11 @@ server and its API calls reach opencode directly.
 - Worktree dirs use `owner__name__sessionId`
 
 ## Local dev
-
 ```bash
 uv venv && uv pip install -r requirements.txt
 ```
 
 ## Deploy
-
 ```bash
 # First time: create app + volume
 fly apps create dancodes --org jdanbrown
