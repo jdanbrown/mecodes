@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -170,8 +171,17 @@ def garbage_collect() -> dict[str, int]:
     return {"pruned": pruned}
 
 
+OPENCODE_URL = "http://localhost:4096"
+
+
 @app.get("/admin/health")
-def health() -> dict[str, str]:
+async def health() -> dict[str, str]:
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{OPENCODE_URL}/global/health", timeout=2)
+            resp.raise_for_status()
+    except Exception:
+        raise HTTPException(status_code=503, detail="opencode not ready")
     return {"status": "ok"}
 
 

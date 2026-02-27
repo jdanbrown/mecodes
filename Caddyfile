@@ -4,8 +4,9 @@
 }
 
 :8080 {
-  # HTTP Basic Auth — CADDY_AUTH_HASH is computed from CADDY_AUTH_PASSWORD at startup
-  basic_auth * {
+  # HTTP Basic Auth — skip /admin/health so Fly's health check can reach it
+  @authed not path /admin/health
+  basic_auth @authed {
     {$CADDY_AUTH_USER} {$CADDY_AUTH_HASH}
   }
 

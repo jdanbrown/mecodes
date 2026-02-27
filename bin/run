@@ -27,17 +27,20 @@ echo_black_stderr "Starting opencode (bg)"
 show_cmd opencode serve --hostname 0.0.0.0 --port 4096 &
 OPENCODE_PID=$!
 
-echo_black_stderr "Starting sidebar (bg)"
+echo_black_stderr "Starting sidecar (bg)"
 show_cmd /opt/mecodes/sidecar/.venv/bin/uvicorn sidecar.app:app --host 0.0.0.0 --port 4097 --log-level info &
 SIDECAR_PID=$!
 
 echo_black_stderr "Waiting for opencode to be ready..."
 for i in $(seq 1 60); do
-  if show_cmd curl -sf http://localhost:4096/health >/dev/null; then
+  if show_cmd curl -sf http://localhost:4096/global/health >/dev/null; then
     break
   fi
   sleep 0.5
 done
 
+# Caddy starts last — Fly's health check targets /admin/health (sidecar), which
+# itself checks opencode liveness. So the deploy isn't "ready" until the whole
+# stack is up: opencode + sidecar + caddy.
 echo_black_stderr "Running caddy (fg)"
 show_cmd exec caddy run --config /opt/mecodes/Caddyfile
