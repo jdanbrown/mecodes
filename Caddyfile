@@ -4,6 +4,7 @@
 }
 
 :8080 {
+
   # HTTP Basic Auth — skip /admin/health so Fly's health check can reach it
   @authed not path /admin/health
   basic_auth @authed {
@@ -28,4 +29,5 @@
   handle {
     reverse_proxy localhost:4096
   }
+
 }
