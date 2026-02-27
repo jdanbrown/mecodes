@@ -9,7 +9,7 @@ Personal "Claude Code Web" alternative: opencode + OpenRouter, deployed for mobi
 
 ## Architecture
 ```
-Phone → Caddy (TLS + basic auth) → opencode serve :4096
+Phone → Caddy (TLS + cookie auth) → opencode serve :4096
                                         ↓
                                     /vol/projects/  (git clones + worktrees)
                                     /vol/opencode-state/  (SQLite)
@@ -26,11 +26,12 @@ A single `opencode serve` process already handles:
 
 So the frontend can talk to the opencode API directly. No orchestrator/proxy needed.
 
-### Auth: Caddy layer only
-- Caddy handles TLS + HTTP Basic Auth (bcrypt-hashed passwords)
-- `OPENCODE_SERVER_PASSWORD` left **unset** on opencode serve — Caddy is the auth wall
-- Rationale: decouples security boundary from opencode's implementation, immune to upstream auth changes
-- Can add rate limiting, IP allowlisting, Tailscale/WireGuard at the Caddy layer later
+### Auth: cookie-based via Caddy forward_auth
+- Caddy uses `forward_auth` to check a session cookie on every request (except health check + auth endpoints)
+- Sidecar handles auth: login page (`GET /auth/login`), form submit (`POST /auth/login`), cookie check (`GET /auth/check`)
+- Cookie is HMAC-signed with `AUTH_SECRET`, expires after 30 days
+- `OPENCODE_SERVER_PASSWORD` left **unset** on opencode serve — Caddy + sidecar are the auth wall
+- Rationale: cookie auth avoids constant re-prompting (unlike basic auth), works uniformly across all routes
 
 ### Deploys: no drain needed
 - OpenCode sessions persist in SQLite, survive restarts
@@ -117,24 +118,26 @@ opencode and sidecar are backgrounded. `run` waits for opencode's `/global/healt
 
 ### Caddy routing
 - `/admin/health` → sidecar `:4097` (unauthenticated — Fly health check)
-- `/admin/*` → sidecar `:4097` (authenticated)
-- `/*` → static file if it exists in our frontend dir, otherwise → opencode `:4096`
+- `/auth/*` → sidecar `:4097` (unauthenticated — login page + form)
+- All other routes → `forward_auth` cookie check via sidecar, then:
+  - `/admin/*` → sidecar `:4097`
+  - Static file match → our frontend (e.g. `/` → `index.html`)
+  - Everything else → opencode `:4096` (API + opencode web UI via catch-all proxy to `app.opencode.ai`)
 
-This lets `/` serve our `index.html`, while `/session/*`, `/event`, etc. pass through to
-the opencode API. The built-in opencode web UI also works: point `app.opencode.ai` at this
-server and its API calls reach opencode directly.
+This lets `/` serve our custom frontend, while `/session/*` loads the opencode web UI,
+and `/event`, `/config`, etc. reach the opencode API.
 
-### Startup timeline (~23s)
+### Startup timeline (~20s)
 1. Fly starts VM, mounts volume, runs `/opt/mecodes/run`
-2. `run` hashes `CADDY_AUTH_PASSWORD` via `caddy hash-password` (~1-2s)
+2. `run` writes `version.json` for the frontend
 3. opencode + sidecar start in background (sidecar is ready almost instantly)
 4. opencode does SQLite migration on first boot, then ready on `:4096` (~20s)
-5. `run` health-check loop detects opencode, starts Caddy on `:8080` (~22s)
+5. `run` health-check loop detects opencode, starts Caddy on `:8080`
 6. `fly deploy` exits early (before app is ready) — no deploy-time health check configured
 
 ### Secrets (set via `fly secrets set`)
-- `CADDY_AUTH_USER` — HTTP basic auth username
-- `CADDY_AUTH_PASSWORD` — plaintext, hashed at startup by `run`
+- `AUTH_PASSWORD` — login password
+- `AUTH_SECRET` — HMAC key for signing session cookies (random string)
 - `GITHUB_TOKEN` — GitHub PAT for private repo access
 - `OPENROUTER_API_KEY` — (or whichever provider env opencode needs)
 
@@ -159,7 +162,7 @@ uv venv && uv pip install -r requirements.txt
 ```bash
 fly apps create dancodes --org jdanbrown
 fly volumes create dancodes_vol --app dancodes --region iad --size 10
-fly secrets set --app dancodes CADDY_AUTH_USER=... CADDY_AUTH_PASSWORD=... GITHUB_TOKEN=... OPENROUTER_API_KEY=...
+fly secrets set --app dancodes AUTH_PASSWORD=... AUTH_SECRET=... GITHUB_TOKEN=... OPENROUTER_API_KEY=...
 ```
 
 ### Deploys are automatic

@@ -40,6 +40,11 @@ RUN python3 -m venv sidecar/.venv \
 COPY . .
 RUN chmod a+x bin/*
 
+# Bake git version info (set by --build-arg in CI, defaults to 'dev')
+ARG GIT_SHA=dev
+ARG GIT_TIME=unknown
+RUN echo "$GIT_SHA" > /opt/mecodes/VERSION && echo "$GIT_TIME" > /opt/mecodes/VERSION_TIME
+
 # Volume mount point
 RUN mkdir -p /vol/projects /vol/opencode-state
 

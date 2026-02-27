@@ -5,13 +5,17 @@
 
 :8080 {
 
-  # HTTP Basic Auth — skip /admin/health so Fly's health check can reach it
-  @authed not path /admin/health
-  basic_auth @authed {
-    {$CADDY_AUTH_USER} {$CADDY_AUTH_HASH}
+  # Auth: cookie-based via sidecar's forward_auth check.
+  # Skip health check (Fly) and auth endpoints (login page + form submit).
+  @protected not path /admin/health /auth/*
+  forward_auth @protected localhost:4097 {
+    uri /auth/check
   }
 
-  # Sidecar API
+  # Sidecar API (includes /auth/* and /admin/*)
+  handle /auth/* {
+    reverse_proxy localhost:4097
+  }
   handle /admin/* {
     reverse_proxy localhost:4097
   }
@@ -19,8 +23,8 @@
   # Our frontend (static files), falling through to opencode API.
   # try_files serves our file if it exists, otherwise proxies to opencode.
   # This lets / serve our index.html while /session/*, /event, etc. reach the API.
-  # app.opencode.ai also works: point it at this server, API routes pass through,
-  # and its own assets come from app.opencode.ai directly (not from our static files).
+  # Unmatched paths (e.g. /session/abc) fall through to opencode, which proxies
+  # to app.opencode.ai — so the opencode web UI is available at any non-file path.
   root * /opt/mecodes/frontend
   @static file {
     try_files {path} {path}/index.html

@@ -1,19 +1,121 @@
 """
-mecodes sidecar — git lifecycle, disk usage, orphan process management.
+mecodes sidecar — git lifecycle, disk usage, orphan process management, auth.
 """
+import hashlib
+import hmac
 import os
 import shutil
 import subprocess
+import time
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
 PROJECTS_DIR = os.environ.get("MECODES_PROJECTS_DIR", "/vol/projects")
 GITHUB_USER = os.environ.get("GITHUB_USER", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
+AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
+AUTH_SECRET = os.environ.get("AUTH_SECRET", "mecodes-dev-secret")
+AUTH_MAX_AGE = 30 * 24 * 60 * 60  # 30 days
+COOKIE_NAME = "mecodes_session"
+# Fly terminates TLS at the edge, so the app sees HTTP — but cookies need Secure
+# for the browser to send them over HTTPS. Use X-Forwarded-Proto to detect.
+COOKIE_SECURE = os.environ.get("FLY_APP_NAME", "") != ""
+
 app = FastAPI(title="mecodes sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json")
+
+
+# --- Auth endpoints ---
+
+def _sign_token(expires: int) -> str:
+    payload = str(expires)
+    sig = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def _verify_token(token: str) -> bool:
+    try:
+        payload, sig = token.rsplit(".", 1)
+        expected = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return False
+        return int(payload) > time.time()
+    except Exception:
+        return False
+
+
+@app.get("/auth/check")
+def auth_check(request: Request) -> Response:
+    """Caddy forward_auth calls this — 200 means authenticated, otherwise redirect to login.
+    forward_auth copies non-2xx responses directly to the client, so we redirect here."""
+    token = request.cookies.get(COOKIE_NAME)
+    if token and _verify_token(token):
+        return Response(status_code=200)
+    # forward_auth sends the original URI in X-Forwarded-Uri
+    original = request.headers.get("X-Forwarded-Uri", "/")
+    return RedirectResponse(url=f"/auth/login?redirect={original}", status_code=302)
+
+
+@app.get("/auth/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    error = request.query_params.get("error", "")
+    redirect = request.query_params.get("redirect", "/")
+    return f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mecodes — login</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9;
+         height: 100dvh; display: flex; align-items: center; justify-content: center; }}
+  form {{ background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+          padding: 2rem; width: 300px; display: flex; flex-direction: column; gap: 1rem; }}
+  h2 {{ font-size: 1.1rem; text-align: center; }}
+  input {{ background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+           border-radius: 8px; padding: 0.7rem 0.875rem; font-size: 0.875rem;
+           font-family: inherit; width: 100%; }}
+  input:focus {{ outline: none; border-color: #58a6ff; }}
+  button {{ background: #58a6ff; color: #fff; border: none; border-radius: 8px;
+            padding: 0.7rem; font-size: 0.875rem; font-weight: 500; cursor: pointer; }}
+  button:hover {{ opacity: 0.9; }}
+  .error {{ color: #f85149; font-size: 0.8rem; text-align: center; }}
+</style>
+</head><body>
+<form method="POST" action="/auth/login">
+  <h2>mecodes</h2>
+  {"<div class='error'>Wrong password</div>" if error else ""}
+  <input type="password" name="password" placeholder="Password" autofocus>
+  <input type="hidden" name="redirect" value="{redirect}">
+  <button type="submit">Log in</button>
+</form>
+</body></html>"""
+
+
+@app.post("/auth/login")
+def login_submit(password: str = Form(...), redirect: str = Form("/")):
+    if not redirect.startswith("/"):
+        redirect = "/"
+    if not AUTH_PASSWORD or password != AUTH_PASSWORD:
+        return RedirectResponse(
+            url=f"/auth/login?error=1&redirect={redirect}",
+            status_code=303,
+        )
+    expires = int(time.time()) + AUTH_MAX_AGE
+    token = _sign_token(expires)
+    response = RedirectResponse(url=redirect, status_code=303)
+    response.set_cookie(
+        COOKIE_NAME,
+        token,
+        max_age=AUTH_MAX_AGE,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    return response
 
 
 # --- Models (must precede endpoints — FastAPI evaluates type annotations eagerly) ---

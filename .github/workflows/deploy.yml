@@ -33,6 +33,12 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - run: flyctl deploy --remote-only
+      - name: Deploy
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          TIME=$(git log -1 --format=%cI)
+          flyctl deploy --remote-only \
+            --build-arg "GIT_SHA=$SHA" \
+            --build-arg "GIT_TIME=$TIME"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

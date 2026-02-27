@@ -19,8 +19,7 @@ fi
 show_cmd docker run \
     --rm \
     -p 8080:8080 \
-    -e CADDY_AUTH_USER=dev \
-    -e CADDY_AUTH_PASSWORD=dev \
+    -e AUTH_PASSWORD=dev \
     -v /tmp:/tmp \
     -v "$PWD":"$PWD":ro \
     -w "$PWD" \

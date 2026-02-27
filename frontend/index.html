@@ -267,8 +267,10 @@
 <body>
 
 <div class="status-bar">
+  <span id="buildVersion" style="opacity:0.5"></span>
   <span><span class="dot" id="dotOc"></span>opencode</span>
   <span><span class="dot" id="dotSc"></span>sidecar</span>
+  <a href="/session" style="color:var(--dim);text-decoration:none;opacity:0.7" title="Open opencode web UI">opencode web ↗</a>
   <span id="sseStatus"></span>
 </div>
 
@@ -726,6 +728,10 @@ checkHealth();
 loadSessions();
 connectSSE();
 setInterval(checkHealth, 30_000);
+
+fetch("/version.json").then(r => r.json()).then(v => {
+  document.getElementById("buildVersion").textContent = `${v.sha} (${v.time})`;
+}).catch(() => {});
 </script>
 </body>
 </html>

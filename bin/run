@@ -17,11 +17,10 @@ echo_black_stderr "Start: run"
 # Ensure volume dirs exist
 mkdir -p /vol/projects /vol/opencode-state
 
-# Hash the plaintext password for Caddy's basic_auth
-# - Allow empty for local dev
-if [ -n "${CADDY_AUTH_PASSWORD:-}" ]; then
-  export CADDY_AUTH_HASH="$(caddy hash-password --plaintext "$CADDY_AUTH_PASSWORD")"
-fi
+# Write build version for the frontend to display
+GIT_SHA="$(cat /opt/mecodes/VERSION 2>/dev/null || echo 'dev')"
+GIT_TIME="$(cat /opt/mecodes/VERSION_TIME 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "{\"sha\":\"${GIT_SHA}\",\"time\":\"${GIT_TIME}\"}" > /opt/mecodes/frontend/version.json
 
 echo_black_stderr "Starting opencode (bg)"
 show_cmd opencode serve --hostname 0.0.0.0 --port 4096 &
