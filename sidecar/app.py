@@ -30,7 +30,7 @@ class WorktreeRequest(BaseModel):
 # --- Repo endpoints ---
 
 @app.post("/admin/repos/clone")
-def clone_repo(req: CloneRequest):
+def clone_repo(req: CloneRequest) -> dict[str, str]:
     dest = _repo_dir(req.repo)
     if os.path.exists(dest):
         return {"status": "exists", "path": dest}
@@ -42,7 +42,7 @@ def clone_repo(req: CloneRequest):
 
 
 @app.delete("/admin/repos/{owner}/{name}")
-def delete_repo(owner: str, name: str):
+def delete_repo(owner: str, name: str) -> dict[str, str]:
     dest = _repo_dir(f"{owner}/{name}")
     if not os.path.exists(dest):
         raise HTTPException(status_code=404, detail="repo not found")
@@ -51,7 +51,7 @@ def delete_repo(owner: str, name: str):
 
 
 @app.get("/admin/repos")
-def list_repos():
+def list_repos() -> dict[str, list[str]]:
     repos_dir = os.path.join(PROJECTS_DIR, "repos")
     if not os.path.exists(repos_dir):
         return {"repos": []}
@@ -63,7 +63,7 @@ def list_repos():
 # --- Worktree endpoints ---
 
 @app.post("/admin/worktrees")
-def create_worktree(req: WorktreeRequest):
+def create_worktree(req: WorktreeRequest) -> dict[str, str]:
     bare = _repo_dir(req.repo)
     if not os.path.exists(bare):
         raise HTTPException(status_code=404, detail="repo not cloned — clone it first")
@@ -79,7 +79,7 @@ def create_worktree(req: WorktreeRequest):
 
 
 @app.delete("/admin/worktrees/{owner}/{name}/{session_id}")
-def delete_worktree(owner: str, name: str, session_id: str):
+def delete_worktree(owner: str, name: str, session_id: str) -> dict[str, str]:
     bare = _repo_dir(f"{owner}/{name}")
     dest = _worktree_dir(f"{owner}/{name}", session_id)
     if not os.path.exists(dest):
@@ -91,12 +91,12 @@ def delete_worktree(owner: str, name: str, session_id: str):
 
 
 @app.get("/admin/worktrees")
-def list_worktrees():
+def list_worktrees() -> dict[str, list[dict[str, str]]]:
     wt_dir = os.path.join(PROJECTS_DIR, "worktrees")
     if not os.path.exists(wt_dir):
         return {"worktrees": []}
     entries = os.listdir(wt_dir)
-    worktrees = []
+    worktrees: list[dict[str, str]] = []
     for e in entries:
         full = os.path.join(wt_dir, e)
         if os.path.isdir(full):
@@ -112,7 +112,7 @@ def list_worktrees():
 # --- Disk & process endpoints ---
 
 @app.get("/admin/disk")
-def disk_usage():
+def disk_usage() -> dict[str, str]:
     result = _run(["du", "-sh", PROJECTS_DIR])
     total = result.stdout.strip().split("\t")[0] if result.returncode == 0 else "unknown"
     stat = shutil.disk_usage("/vol")
@@ -125,13 +125,13 @@ def disk_usage():
 
 
 @app.get("/admin/processes")
-def orphan_processes():
+def orphan_processes() -> dict[str, list[dict[str, str | int]]]:
     """Find processes whose parent is PID 1 (orphans), excluding known services."""
     known = {"caddy", "opencode", "uvicorn", "python3", "run"}
     result = _run(["ps", "-eo", "pid,ppid,comm,args", "--no-headers"])
     if result.returncode != 0:
         return {"orphans": []}
-    orphans = []
+    orphans: list[dict[str, str | int]] = []
     for line in result.stdout.strip().splitlines():
         parts = line.split(None, 3)
         if len(parts) < 3:
@@ -144,7 +144,7 @@ def orphan_processes():
 
 
 @app.post("/admin/processes/{pid}/kill")
-def kill_process(pid: int):
+def kill_process(pid: int) -> dict[str, str | int]:
     try:
         os.kill(pid, 15)  # SIGTERM
     except ProcessLookupError:
@@ -155,7 +155,7 @@ def kill_process(pid: int):
 
 
 @app.post("/admin/gc")
-def garbage_collect():
+def garbage_collect() -> dict[str, int]:
     """Prune worktrees for repos, remove orphan worktree dirs."""
     repos_dir = os.path.join(PROJECTS_DIR, "repos")
     if not os.path.exists(repos_dir):
@@ -171,7 +171,7 @@ def garbage_collect():
 
 
 @app.get("/admin/health")
-def health():
+def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
@@ -191,8 +191,8 @@ def _clone_url(repo: str) -> str:
     return f"https://github.com/{repo}.git"
 
 
-def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=120, **kwargs)
+def _run(cmd: list[str], cwd: str | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
 
 
 def _human(nbytes: int) -> str:
