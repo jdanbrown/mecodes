@@ -3,6 +3,7 @@ mecodes sidecar — git lifecycle, disk usage, orphan process management, auth.
 """
 import hashlib
 import hmac
+import logging
 import os
 import shutil
 import subprocess
@@ -12,6 +13,15 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel
+
+
+class _LogFilterForUvicornAccess(logging.Filter):
+    """Suppress access-log lines for auth checks (called on every request by Caddy forward_auth)"""
+    def filter(self, record: logging.LogRecord) -> bool:
+        return '"GET /auth/check ' not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(_LogFilterForUvicornAccess())
 
 PROJECTS_DIR = os.environ.get("MECODES_PROJECTS_DIR", "/vol/projects")
 GITHUB_USER = os.environ.get("GITHUB_USER", "")
