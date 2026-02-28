@@ -1,40 +1,74 @@
-# Project context
-Personal "Claude Code Web" alternative using `opencode serve` + custom frontends
-- Use `README.md` to understand and document design, architecture, tradeoffs, decisions, etc.
-- Update `README.md` as we go so that we keep it evergreen and always up to date
+# Working model
+This project is built entirely from a phone, chatting with an llm
+- The human never writes or reads the code directly, the llm does all code work.
+- The llm does all the work -- read/write code, run checks/test, read logs, etc.
+- The human does actively view and use the web app in a mobile browser, but beyond that their hands-on capabilities are very limited
+- Some steps like deploys should be automated (see `README.md` for authority)
 
-# Working style
-- This is a personal-use project — optimize for simplicity and speed over polish
-- Cut corners on scale, resource multiplexing, multi-tenancy — it's one user on one machine
-- Surface internal state rather than hiding it — better to see and control than to abstract away
-- If a solution seems unreasonably complex, pause and present approaches before diving in
+## Docs
+- `README.md` -- purpose and design
+- `AGENTS.md` -- working model for llms (this doc)
+- `MEMORY.md` -- institutional memory for llms
+- `BACKLOG.md` -- backlog of ideas for the future
 
-## Tech decisions
-- Backend: Caddy (TLS + auth) → single `opencode serve` process + small sidecar
-- Sidecar: manages git clone/worktree lifecycle + resource dashboard
-- Frontend: web-first (mobile-friendly), iOS-native later
-- Hosting: Fly.io, 1 machine + 1 volume
-- Auth: Caddy layer only, `OPENCODE_SERVER_PASSWORD` unset
+## Guiding principles
+- **Close the loop**: The human can only verify by using the web app on a phone. The llm must verify changes before considering them done.
+- **Institutional memory**: The human has none of the system details in their head because they aren't the one writing the code, making the mistakes, and reasoning through how to solve every problem that arises. Code comments, `MEMORY.md`, and `README.md` are how you should persist knowledge across sessions.
+- **Favor boring code**: Prefer obvious, explicit code over clever, surprising code. The human isn't in the loop on the code, so the next llm session needs to understand it cold.
+- **Keep it small, keep it simple**: We aren't at ASI/AGI yet (speaking from 2026). Keep the complexity and subtleties of the system manageable by an llm. Resist over-engineering. Design for future changes and understandability from the perspective of an llm (e.g. rewrites are cheap).
+- **Observability**: Good observability (logging, error msgs, etc.) is critical to understanding and debugging a system, by llms or humans.
+
+## Working style
+- This is a personal-use project -- optimize for simplicity and speed over polish
+- Cut corners on scale, resource multiplexing, multi-tenancy -- it's one user on one machine
+- Surface internal state to the user rather than hiding it -- better to see and control than to hide away
+- If a solution seems unreasonably complex, pause and discuss approaches before diving in
+
+## Institutional memory
+- Update `README.md` when design or architecture changes
+- Update `MEMORY.md` if you learned something worth writing down for future llm sessions
+- Always read `MEMORY.md` at the start of each session to avoid repeating past mistakes and surprises
+
+## Codebase review
+- Track the last review date and commit sha in `MEMORY.md` under "Last codebase review"
+- If the last review was a while ago (~20 commits), let the human know, "We haven't done a codebase review since <date> <commit>"
+- If they ignore it, then focus on their task and leave the codebase review for a future llm session -- don't derail their focus
+- If they go for the codebase review, then update `MEMORY.md` afterwards to reflect
+
+## Backlog
+- Don't read `BACKLOG.md` by default -- load it only when the human asks about the "backlog"
+- Update `BACKLOG.md` if the human asks you to save something to the "backlog"
+- Don't update `BACKLOG.md` if the human doesn't explicitly mention "backlog" -- e.g. "save that for later" often means within the same session, not "go write this down in a file for another day"
 
 ## Coding style
-- No trailing whitespace
-- Always one trailing newline at end of file
+- No trailing whitespace at the end of lines
+- Always one trailing newline at the end of the file
 - Always trailing commas (on languages that allow it)
-- Comments: very sparingly, focus on "why" not "what"
-- Don't add comments about removed code — future readers don't care
+- Add comments sparingly
+  - Don't add comments about things that are self-evident from the code
+  - Do add comments explaining the "why" of the code, when it's not self-evident
+  - Do add comments to explain things that are non-obvious, tricky, or gotchas to avoid
+  - Do use comments to label or structure large or complex blocks of code
+  - Don't add comments explaining that you removed some code in an edit -- the code is gone, future readers don't care!
+  - Don't include comments about each diff to the code, only comments that are useful looking at the latest state
+- Make the "what" self-evident through clear naming and structure. Use comments to explain why the code does this "what" instead of other "whats".
 
-## Python style
+### Python style
 - No empty `__init__.py` files (that's a py2 thing)
-- Order code top-down: public API / endpoints first, models and helpers below
+- Order code top-down: public api / endpoints first, models and helpers below
   - Reader should encounter purpose before details, not the other way around
   - Exception: types/models must be defined before they're referenced, so they go above endpoints
 
-## Key APIs to know
-- OpenCode REST + SSE API: the frontend talks to this directly for all session/chat operations
-- Sidecar API (`/admin/...`): git lifecycle, resource management, orphan detection
-- Always use the opencode API to stop sessions, never raw `kill`
+## Tests/checks
+- Always run `dev/check` and confirm it passes before considering a change done
+  - Don't leave a mess -- the human can't fix these from their phone
 
 ## Searching docs and examples
-- Code APIs change often — eagerly search with `context7` tool to avoid outdated knowledge
-- Use `github_grep` for code examples across repos
-- Use `webfetch` pointed at duckduckgo for web searches (don't use google, requires JS)
+- Code apis change often -- eagerly search with `context7` tool to avoid outdated knowledge
+- Use `github_grep` to search for code examples across github repos
+- Use `webfetch` to search the web -- prefer duckduckgo (simple html), not google (requires js)
+
+## Tools
+- There's an LSP server that runs continuously, so expect to see spurious compile/analysis errors reported after every intermediate code edit you make
+  - Don't let these distract you -- they don't indicate real problems until you've finished your edits
+  - But do fix up LSP errors once your intermediate edits are done -- don't leave a mess
