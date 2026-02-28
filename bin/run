@@ -2,8 +2,9 @@
 set -euo pipefail
 
 function echo_black_stderr() {
-  black="`tput setaf 0`"
-  off="`tput sgr0`"
+  # Use 2>/dev/null with tput to silence this headless error: "tput: No value for $TERM and no -T specified"
+  black="$(tput setaf 0 2>/dev/null || true)"
+  off="$(tput sgr0 2>/dev/null || true)"
   echo -e "$black$@$off" >&2
 }
 
