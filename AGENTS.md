@@ -60,8 +60,9 @@ This project is built entirely from a phone, chatting with an llm
   - Exception: types/models must be defined before they're referenced, so they go above endpoints
 
 ## Tests/checks
-- Always run `dev/check` and confirm it passes before considering a change done
-  - Don't leave a mess -- the human can't fix these from their phone
+- Always run `dev/check` and confirm it passes before committing
+  - If it fails, fix the issues and re-run until it passes
+  - Don't commit or push with failing checks -- the human can't fix these from their phone
 
 ## Searching docs and examples
 - Code apis change often -- eagerly search with `context7` tool to avoid outdated knowledge

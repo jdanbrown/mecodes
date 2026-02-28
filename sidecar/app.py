@@ -1,6 +1,7 @@
 """
 mecodes sidecar — git lifecycle, disk usage, orphan process management, auth.
 """
+
 import hashlib
 import hmac
 import logging
@@ -17,6 +18,7 @@ from pydantic import BaseModel
 
 class _LogFilterForUvicornAccess(logging.Filter):
     """Suppress access-log lines for auth checks (called on every request by Caddy forward_auth)"""
+
     def filter(self, record: logging.LogRecord) -> bool:
         return '"GET /auth/check ' not in record.getMessage()
 
@@ -35,10 +37,13 @@ COOKIE_NAME = "mecodes_session"
 # for the browser to send them over HTTPS. Use X-Forwarded-Proto to detect.
 COOKIE_SECURE = os.environ.get("FLY_APP_NAME", "") != ""
 
-app = FastAPI(title="mecodes sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json")
+app = FastAPI(
+    title="mecodes sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json"
+)
 
 
 # --- Auth endpoints ---
+
 
 def _sign_token(expires: int) -> str:
     payload = str(expires)
@@ -49,7 +54,9 @@ def _sign_token(expires: int) -> str:
 def _verify_token(token: str) -> bool:
     try:
         payload, sig = token.rsplit(".", 1)
-        expected = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        expected = hmac.new(
+            AUTH_SECRET.encode(), payload.encode(), hashlib.sha256
+        ).hexdigest()
         if not hmac.compare_digest(sig, expected):
             return False
         return int(payload) > time.time()
@@ -130,6 +137,7 @@ def login_submit(password: str = Form(...), redirect: str = Form("/")):
 
 # --- Models (must precede endpoints — FastAPI evaluates type annotations eagerly) ---
 
+
 class CloneRequest(BaseModel):
     repo: str  # "owner/name"
 
@@ -141,6 +149,7 @@ class WorktreeRequest(BaseModel):
 
 
 # --- Repo endpoints ---
+
 
 @app.post("/admin/repos/clone")
 def clone_repo(req: CloneRequest) -> dict[str, str]:
@@ -169,11 +178,16 @@ def list_repos() -> dict[str, list[str]]:
     if not os.path.exists(repos_dir):
         return {"repos": []}
     entries = os.listdir(repos_dir)
-    repos = [e.replace("__", "/", 1) for e in entries if os.path.isdir(os.path.join(repos_dir, e))]
+    repos = [
+        e.replace("__", "/", 1)
+        for e in entries
+        if os.path.isdir(os.path.join(repos_dir, e))
+    ]
     return {"repos": repos}
 
 
 # --- Worktree endpoints ---
+
 
 @app.post("/admin/worktrees")
 def create_worktree(req: WorktreeRequest) -> dict[str, str]:
@@ -185,7 +199,9 @@ def create_worktree(req: WorktreeRequest) -> dict[str, str]:
         return {"status": "exists", "path": dest}
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     branch_name = f"mecodes/{req.session_id}"
-    result = _run(["git", "worktree", "add", "-b", branch_name, dest, req.branch], cwd=bare)
+    result = _run(
+        ["git", "worktree", "add", "-b", branch_name, dest, req.branch], cwd=bare
+    )
     if result.returncode != 0:
         raise HTTPException(status_code=500, detail=result.stderr)
     return {"status": "created", "path": dest}
@@ -214,20 +230,25 @@ def list_worktrees() -> dict[str, list[dict[str, str]]]:
         full = os.path.join(wt_dir, e)
         if os.path.isdir(full):
             parts = e.split("__", 2)
-            worktrees.append({
-                "repo": f"{parts[0]}/{parts[1]}" if len(parts) >= 2 else e,
-                "session_id": parts[2] if len(parts) >= 3 else "",
-                "path": full,
-            })
+            worktrees.append(
+                {
+                    "repo": f"{parts[0]}/{parts[1]}" if len(parts) >= 2 else e,
+                    "session_id": parts[2] if len(parts) >= 3 else "",
+                    "path": full,
+                }
+            )
     return {"worktrees": worktrees}
 
 
 # --- Disk & process endpoints ---
 
+
 @app.get("/admin/disk")
 def disk_usage() -> dict[str, str]:
     result = _run(["du", "-sh", PROJECTS_DIR])
-    total = result.stdout.strip().split("\t")[0] if result.returncode == 0 else "unknown"
+    total = (
+        result.stdout.strip().split("\t")[0] if result.returncode == 0 else "unknown"
+    )
     stat = shutil.disk_usage("/vol")
     return {
         "projects_size": total,
@@ -299,12 +320,15 @@ async def health() -> dict[str, str]:
 
 # --- Helpers ---
 
+
 def _repo_dir(repo: str) -> str:
     return os.path.join(PROJECTS_DIR, "repos", repo.replace("/", "__"))
 
 
 def _worktree_dir(repo: str, session_id: str) -> str:
-    return os.path.join(PROJECTS_DIR, "worktrees", f"{repo.replace('/', '__')}__{session_id}")
+    return os.path.join(
+        PROJECTS_DIR, "worktrees", f"{repo.replace('/', '__')}__{session_id}"
+    )
 
 
 def _clone_url(repo: str) -> str:
