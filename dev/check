@@ -10,9 +10,12 @@ function show_cmd() {
 }
 
 # Backend (python)
+[ -f .venv/pyvenv.cfg ] || show_cmd uv venv .venv
+[ -f .venv/.installed ] || (show_cmd uv pip install -r requirements.txt && touch .venv/.installed)
 show_cmd ruff check .
 show_cmd ruff format --check .
 show_cmd pyright
 
 # Frontend (ts, css)
+[ -f node_modules/.package-lock.json ] || show_cmd npm install
 show_cmd npx biome check frontend/
