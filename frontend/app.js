@@ -277,7 +277,7 @@ function renderMain() {
   if (!currentId) {
     inputArea.classList.remove("visible");
     document.getElementById("messages").innerHTML =
-      '<div class="empty-state"><h2>mecodes</h2><p>Select a session or create a new one</p></div>';
+      '<div class="empty-state"><h2>dancodes</h2><p>Select a session or create a new one</p></div>';
     document.getElementById("chatTitle").textContent = "Select a session";
     document.getElementById("chatTitle").className = "chat-title";
     renderAbortBtn();

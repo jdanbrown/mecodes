@@ -1,6 +1,6 @@
 FROM debian:bookworm-slim
 
-WORKDIR /opt/mecodes
+WORKDIR /opt/dancodes
 
 # Install system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -52,11 +52,11 @@ RUN chmod a+x bin/*
 # Bake git version info (set by --build-arg in CI, defaults to 'dev')
 ARG GIT_SHA=dev
 ARG GIT_TIME=unknown
-RUN echo "$GIT_SHA" > /opt/mecodes/VERSION && echo "$GIT_TIME" > /opt/mecodes/VERSION_TIME
+RUN echo "$GIT_SHA" > /opt/dancodes/VERSION && echo "$GIT_TIME" > /opt/dancodes/VERSION_TIME
 
 # Volume mount point
 RUN mkdir -p /vol/projects /vol/opencode-state
 
 EXPOSE 8080
 
-ENTRYPOINT ["/opt/mecodes/bin/run"]
+ENTRYPOINT ["/opt/dancodes/bin/run"]

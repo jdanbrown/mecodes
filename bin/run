@@ -15,20 +15,23 @@ function show_cmd() {
 
 echo_black_stderr "Start: run"
 
+# Config
+APP_DIR='/opt/dancodes'
+
 # Ensure volume dirs exist
 mkdir -p /vol/projects /vol/opencode-state
 
 # Write build version for the frontend to display
-GIT_SHA="$(cat /opt/mecodes/VERSION 2>/dev/null || echo 'dev')"
-GIT_TIME="$(cat /opt/mecodes/VERSION_TIME 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
-echo "{\"sha\":\"${GIT_SHA}\",\"time\":\"${GIT_TIME}\"}" > /opt/mecodes/frontend/version.json
+GIT_SHA="$(cat "$APP_DIR/VERSION" 2>/dev/null || echo 'dev')"
+GIT_TIME="$(cat "$APP_DIR/VERSION_TIME" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "{\"sha\":\"${GIT_SHA}\",\"time\":\"${GIT_TIME}\"}" > "$APP_DIR/frontend/version.json"
 
 echo_black_stderr "Starting opencode (bg)"
 show_cmd opencode serve --hostname 0.0.0.0 --port 4096 &
 OPENCODE_PID=$!
 
 echo_black_stderr "Starting sidecar (bg)"
-show_cmd /opt/mecodes/sidecar/.venv/bin/uvicorn sidecar.app:app --host 0.0.0.0 --port 4097 --log-level info &
+show_cmd "$APP_DIR/sidecar/.venv/bin/uvicorn" sidecar.app:app --host 0.0.0.0 --port 4097 --log-level info &
 SIDECAR_PID=$!
 
 echo_black_stderr "Waiting for opencode to be ready..."
@@ -43,4 +46,4 @@ done
 # itself checks opencode liveness. So the deploy isn't "ready" until the whole
 # stack is up: opencode + sidecar + caddy.
 echo_black_stderr "Running caddy (fg)"
-show_cmd exec caddy run --config /opt/mecodes/Caddyfile
+show_cmd exec caddy run --config "$APP_DIR/Caddyfile"

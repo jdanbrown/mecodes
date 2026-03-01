@@ -9,4 +9,4 @@ function show_cmd() {
   "$@"
 }
 
-show_cmd docker build . -t 'mecodes'
+show_cmd docker build . -t 'dancodes'

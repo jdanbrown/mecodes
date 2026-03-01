@@ -25,5 +25,5 @@ show_cmd docker run \
     -v "$PWD":"$PWD":ro \
     -w "$PWD" \
     ${DOCKER_OPTS:-} \
-    'mecodes' \
+    'dancodes' \
     "$@"

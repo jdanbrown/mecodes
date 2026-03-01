@@ -1,4 +1,4 @@
-# mecodes
+# dancodes
 Personal service like claude code web, using opencode, with a mobile frontend
 - [`README.md`](README.md) — purpose and design (this doc)
 - [`AGENTS.md`](AGENTS.md) — working model for llms
@@ -112,7 +112,7 @@ Auto-generated OpenAPI docs at `/admin/docs`.
 ## Implementation notes
 
 ### Container layout
-Single Dockerfile, all files under `/opt/mecodes/`. Three processes managed by `run`:
+Single Dockerfile, all files under `/opt/dancodes/`. Three processes managed by `run`:
 1. **opencode serve** on `:4096` (`--hostname 0.0.0.0`, `OPENCODE_SERVER_PASSWORD` unset)
 2. **Sidecar** (Python/FastAPI/uvicorn) on `:4097`
 3. **Caddy** on `:8080` (foreground via `exec`; Fly terminates TLS at edge)
@@ -130,7 +130,7 @@ opencode and sidecar are backgrounded. `run` waits for opencode's `/global/healt
 This lets `/` serve our custom frontend, while `/session/*` loads the opencode web UI, and `/event`, `/config`, etc. reach the opencode API.
 
 ### Startup timeline (~20s)
-1. Fly starts VM, mounts volume, runs `/opt/mecodes/run`
+1. Fly starts VM, mounts volume, runs `/opt/dancodes/run`
 2. `run` writes `version.json` for the frontend
 3. opencode + sidecar start in background (sidecar is ready almost instantly)
 4. opencode does SQLite migration on first boot, then ready on `:4096` (~20s)

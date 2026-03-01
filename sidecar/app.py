@@ -1,5 +1,5 @@
 """
-mecodes sidecar — git lifecycle, disk usage, orphan process management, auth.
+dancodes sidecar — git lifecycle, disk usage, orphan process management, auth.
 """
 
 import hashlib
@@ -25,20 +25,20 @@ class _LogFilterForUvicornAccess(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(_LogFilterForUvicornAccess())
 
-PROJECTS_DIR = os.environ.get("MECODES_PROJECTS_DIR", "/vol/projects")
+PROJECTS_DIR = os.environ.get("DANCODES_PROJECTS_DIR", "/vol/projects")
 GITHUB_USER = os.environ.get("GITHUB_USER", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
 AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
-AUTH_SECRET = os.environ.get("AUTH_SECRET", "mecodes-dev-secret")
+AUTH_SECRET = os.environ.get("AUTH_SECRET", "dancodes-dev-secret")
 AUTH_MAX_AGE = 30 * 24 * 60 * 60  # 30 days
-COOKIE_NAME = "mecodes_session"
+COOKIE_NAME = "dancodes_session"
 # Fly terminates TLS at the edge, so the app sees HTTP — but cookies need Secure
 # for the browser to send them over HTTPS. Use X-Forwarded-Proto to detect.
 COOKIE_SECURE = os.environ.get("FLY_APP_NAME", "") != ""
 
 app = FastAPI(
-    title="mecodes sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json"
+    title="dancodes sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json"
 )
 
 
@@ -83,7 +83,7 @@ def login_page(request: Request):
     return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>mecodes — login</title>
+<title>dancodes — login</title>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9;
@@ -102,7 +102,7 @@ def login_page(request: Request):
 </style>
 </head><body>
 <form method="POST" action="/auth/login">
-  <h2>mecodes</h2>
+  <h2>dancodes</h2>
   {"<div class='error'>Wrong password</div>" if error else ""}
   <input type="password" name="password" placeholder="Password" autofocus>
   <input type="hidden" name="redirect" value="{redirect}">
@@ -198,7 +198,7 @@ def create_worktree(req: WorktreeRequest) -> dict[str, str]:
     if os.path.exists(dest):
         return {"status": "exists", "path": dest}
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    branch_name = f"mecodes/{req.session_id}"
+    branch_name = f"dancodes/{req.session_id}"
     result = _run(
         ["git", "worktree", "add", "-b", branch_name, dest, req.branch], cwd=bare
     )
