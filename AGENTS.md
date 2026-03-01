@@ -39,6 +39,7 @@ This project is built entirely from a phone, chatting with an llm
 - Don't read `BACKLOG.md` by default — load it only when the human asks about the "backlog"
 - Update `BACKLOG.md` if the human asks you to save something to the "backlog"
 - Don't update `BACKLOG.md` if the human doesn't explicitly mention "backlog" — e.g. "save that for later" often means within the same session, not "go write this down in a file for another day"
+- When a backlog item is done, delete it from `BACKLOG.md` (don't keep completed items)
 
 ## Coding style
 - No trailing whitespace at the end of lines
