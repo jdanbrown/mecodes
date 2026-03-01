@@ -73,3 +73,4 @@ This project is built entirely from a phone, chatting with an llm
 - There's an LSP server that runs continuously, so expect to see spurious compile/analysis errors reported after every intermediate code edit you make
   - Don't let these distract you -- they don't indicate real problems until you've finished your edits
   - But do fix up LSP errors once your intermediate edits are done -- don't leave a mess
+- This is a small repo, so feel free to list the whole thing
