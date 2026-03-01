@@ -532,16 +532,16 @@ body {
   right: 0;
   min-width: 260px;
   max-height: 50vh;
-  overflow-y: auto;
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
   z-index: 20;
   margin-bottom: 0.25rem;
+  flex-direction: column;
 }
 .model-panel.visible {
-  display: block;
+  display: flex;
 }
 .model-provider {
   padding: 0.4rem 0.75rem 0.2rem;
@@ -554,11 +554,23 @@ body {
   position: sticky;
   top: 0;
 }
+.model-search-wrap {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.model-list {
+  overflow-y: auto;
+  flex: 1;
+}
 .model-item {
   padding: 0.45rem 0.75rem;
   cursor: pointer;
   font-size: 0.78rem;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 .model-item:last-child {
   border-bottom: none;
@@ -571,9 +583,29 @@ body {
   background: rgba(88, 166, 255, 0.08);
 }
 .model-name {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.model-star {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 0.15rem;
+  line-height: 1;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+.model-star:hover {
+  opacity: 1;
+  color: var(--orange);
+}
+.model-star.starred {
+  opacity: 1;
+  color: var(--orange);
 }
 .msg-model {
   font-weight: 400;

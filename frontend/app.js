@@ -19,6 +19,49 @@ let selectedModel = null;
 let providers = [];
 let connectedProviders = []; // provider IDs that are connected
 
+// Favorites + last model (localStorage-backed)
+const LS_FAVORITES = "dancodes:favoriteModels";
+const LS_LAST_MODEL = "dancodes:lastModel";
+
+function loadFavorites() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_FAVORITES)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFavorites(favs) {
+  localStorage.setItem(LS_FAVORITES, JSON.stringify(favs));
+}
+
+function modelKey(providerID, modelID) {
+  return `${providerID}/${modelID}`;
+}
+
+function toggleFavorite(providerID, modelID, ev) {
+  ev.stopPropagation();
+  const key = modelKey(providerID, modelID);
+  const favs = loadFavorites();
+  const idx = favs.indexOf(key);
+  if (idx >= 0) favs.splice(idx, 1);
+  else favs.push(key);
+  saveFavorites(favs);
+  renderModelPicker();
+}
+
+function loadLastModel() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_LAST_MODEL));
+  } catch {
+    return null;
+  }
+}
+
+function saveLastModel(model) {
+  localStorage.setItem(LS_LAST_MODEL, JSON.stringify(model));
+}
+
 // --- Model picker ---
 async function loadProviders() {
   try {
@@ -36,15 +79,26 @@ async function loadProviders() {
       })
       .filter((p) => p.models.length > 0);
 
-    // Auto-select: use the first connected provider's default model
+    // Auto-select: restore last-used model from localStorage, else provider default
     if (!selectedModel && providers.length > 0) {
-      for (const p of providers) {
-        const defModelId = defaults[p.id];
-        if (defModelId) {
-          const m = p.models.find((m) => m.id === defModelId);
-          if (m) {
-            selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
-            break;
+      const last = loadLastModel();
+      if (last) {
+        const p = providers.find((p) => p.id === last.providerID);
+        const m = p?.models.find((m) => m.id === last.modelID);
+        if (m) {
+          selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
+        }
+      }
+      // Fallback: first connected provider's default model
+      if (!selectedModel) {
+        for (const p of providers) {
+          const defModelId = defaults[p.id];
+          if (defModelId) {
+            const m = p.models.find((m) => m.id === defModelId);
+            if (m) {
+              selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
+              break;
+            }
           }
         }
       }
@@ -72,7 +126,12 @@ function renderModelBtn() {
 function openModelPicker() {
   const panel = document.getElementById("modelPanel");
   panel.classList.toggle("visible");
-  if (panel.classList.contains("visible")) renderModelPicker();
+  if (panel.classList.contains("visible")) {
+    const searchInput = document.getElementById("modelSearch");
+    if (searchInput) searchInput.value = "";
+    renderModelPicker();
+    if (searchInput) searchInput.focus();
+  }
 }
 
 function closeModelPicker() {
@@ -86,22 +145,67 @@ function renderModelPicker() {
     return;
   }
 
-  let html = "";
+  const searchInput = document.getElementById("modelSearch");
+  const query = (searchInput?.value || "").toLowerCase();
+  const favs = loadFavorites();
+
+  // Collect all models with provider info, filter by search
+  // Search matches against "providerID/modelID" so e.g. "openrouter haiku 4" works
+  const queryWords = query.split(/\s+/).filter(Boolean);
+  const allModels = [];
   for (const p of providers) {
-    html += `<div class="model-provider">${esc(p.name)}</div>`;
     for (const m of p.models) {
-      const active = selectedModel?.providerID === p.id && selectedModel?.modelID === m.id ? " active" : "";
       const name = m.name ?? m.id;
-      html += `<div class="model-item${active}" onclick="pickModel('${esc(p.id)}', '${esc(m.id)}', '${esc(name)}')">
-        <span class="model-name">${esc(name)}</span>
-      </div>`;
+      const searchable = `${p.id}/${m.id}`.toLowerCase();
+      if (queryWords.length > 0 && !queryWords.every((w) => searchable.includes(w))) continue;
+      allModels.push({ provider: p, model: m, name, key: modelKey(p.id, m.id) });
     }
   }
+
+  const favoriteModels = allModels.filter((x) => favs.includes(x.key));
+  const restModels = allModels.filter((x) => !favs.includes(x.key));
+
+  let html = "";
+
+  function renderModelItem(providerID, m, name, isFav) {
+    const active = selectedModel?.providerID === providerID && selectedModel?.modelID === m.id ? " active" : "";
+    const starCls = isFav ? "model-star starred" : "model-star";
+    return `<div class="model-item${active}" onclick="pickModel('${esc(providerID)}', '${esc(m.id)}', '${esc(name)}')">
+      <button class="${starCls}" onclick="toggleFavorite('${esc(providerID)}', '${esc(m.id)}', event)" title="${isFav ? "Remove from favorites" : "Add to favorites"}">&#9733;</button>
+      <span class="model-name">${esc(name)}</span>
+    </div>`;
+  }
+
+  if (favoriteModels.length > 0) {
+    html += '<div class="model-provider">Favorites</div>';
+    for (const x of favoriteModels) {
+      html += renderModelItem(x.provider.id, x.model, x.name, true);
+    }
+  }
+
+  // Group rest by provider
+  const grouped = new Map();
+  for (const x of restModels) {
+    if (!grouped.has(x.provider.id)) grouped.set(x.provider.id, { provider: x.provider, models: [] });
+    grouped.get(x.provider.id).models.push(x);
+  }
+  for (const [, group] of grouped) {
+    html += `<div class="model-provider">${esc(group.provider.name)}</div>`;
+    for (const x of group.models) {
+      html += renderModelItem(group.provider.id, x.model, x.name, false);
+    }
+  }
+
+  if (!html) {
+    html = '<div class="session-empty">No models match</div>';
+  }
+
   container.innerHTML = html;
 }
 
 function pickModel(providerID, modelID, name) {
   selectedModel = { providerID, modelID, name };
+  saveLastModel(selectedModel);
   renderModelBtn();
   closeModelPicker();
 }
@@ -750,6 +854,7 @@ document.getElementById("menuBtn").onclick = () => {
   document.getElementById("overlay").classList.toggle("visible");
 };
 document.getElementById("repoSearch").addEventListener("input", renderRepoPicker);
+document.getElementById("modelSearch").addEventListener("input", renderModelPicker);
 document.getElementById("prompt").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
@@ -776,6 +881,7 @@ window.startNewSession = startNewSession;
 window.deleteRepo = deleteRepo;
 window.deleteWorktree = deleteWorktree;
 window.pickModel = pickModel;
+window.toggleFavorite = toggleFavorite;
 
 // --- Init ---
 checkHealth();
