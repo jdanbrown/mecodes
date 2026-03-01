@@ -5,6 +5,7 @@ primary_region = "iad"
 
 [env]
   OPENCODE_HOME = "/vol/opencode-state"
+  OPENCODE_CONFIG = "/opt/dancodes/opencode.json"
   GITHUB_USER = "jdanbrown"
 
 [http_service]
