@@ -33,8 +33,8 @@ PROJECTS_DIR = os.environ.get("DANCODES_PROJECTS_DIR", "/vol/projects")
 GITHUB_USER = os.environ["GITHUB_USER"]
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 
-AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
-AUTH_SECRET = os.environ.get("AUTH_SECRET", "dancodes-dev-secret")
+AUTH_PASSWORD = os.environ["AUTH_PASSWORD"]
+AUTH_SECRET = os.environ["AUTH_SECRET"]
 AUTH_MAX_AGE = 30 * 24 * 60 * 60  # 30 days
 COOKIE_NAME = "dancodes_session"
 # Fly terminates TLS at the edge, so the app sees HTTP — but cookies need Secure
