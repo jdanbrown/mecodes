@@ -120,6 +120,24 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.session-spinner {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border: 1.5px solid var(--dim);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 0.35em;
+  vertical-align: middle;
+  position: relative;
+  top: -0.5px;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .session-dir {
   font-size: 0.72rem;
   color: var(--dim);

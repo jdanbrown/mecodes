@@ -375,6 +375,8 @@ async function deleteSession(id, ev) {
 
 async function selectSession(id) {
   currentId = id;
+  setSending(!!generating[id]);
+  renderAbortBtn();
   renderSessionList();
   renderMain();
   closeSidebar();
@@ -700,6 +702,7 @@ function handleEvent(raw) {
     if (sid && statusType) {
       const isGenerating = statusType !== "idle";
       generating[sid] = isGenerating;
+      renderSessionList();
       if (sid === currentId) {
         if (!isGenerating) setSending(false);
         renderAbortBtn();
@@ -801,12 +804,15 @@ function renderSessionList() {
         const active = s.id === currentId ? " active" : "";
         const title = s.title || s.id?.slice(0, 14) || "untitled";
         const dir = s.directory ? trimDir(s.directory) : "";
+        const busy = generating[s.id] ? '<span class="session-spinner"></span>' : "";
         return `<div class="session-item${active}" onclick="selectSession('${esc(s.id)}')">
       <div class="session-info">
-        <div class="session-title">${esc(title)}</div>
+        <div class="session-title">${busy}${esc(title)}</div>
         ${dir ? `<div class="session-dir">${esc(dir)}</div>` : ""}
       </div>
+      <!-- delete button disabled: too easy to fat-finger on mobile
       <button class="session-del" onclick="deleteSession('${esc(s.id)}', event)" title="Delete">✕</button>
+      -->
     </div>`;
       })
       .join(""),
