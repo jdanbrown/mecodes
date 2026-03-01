@@ -11,6 +11,10 @@
 - 2026-02-28 32452fe
 
 ## Memory log
+- [2026-02-28] Replaced bun with real node in Dockerfile
+  - Previously: bun installed, `ln -s bun node` to satisfy opencode's `#!/usr/bin/env node` shebang
+  - Now: real node via nodesource apt repo, no bun -- same `node`/`npm`/`npx` commands in local dev and prod
+  - Frontend tooling: biome (lint + format) via `npm install`, checked by `dev/check`
 - [2026-02-26] OpenCode internals (reference)
   - TypeScript, runs on Bun, Hono web framework
   - Repo: `anomalyco/opencode`

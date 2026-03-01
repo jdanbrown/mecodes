@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     git \
-    unzip \
+    xz-utils \
     python3 \
     python3-pip \
     python3-venv \
@@ -15,20 +15,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
   && rm -rf /var/lib/apt/lists/*
 
+# Install node
+# - This is apparently the typical way to do it 🤷
+# - Set ARCH dynamically (arm64 for docker on macos/apple, amd64 for linux/intel)
+ARG NODE_VERSION=24.14.0
+RUN ARCH=$(dpkg --print-architecture | sed 's/amd64/x64/') \
+  && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${ARCH}.tar.xz" \
+  | tar -xJ --strip-components=1 -C /usr/local
+
 # Install caddy
-RUN curl -fsSL 'https://caddyserver.com/api/download?os=linux&arch=amd64' -o /usr/local/bin/caddy \
+# - Set ARCH dynamically (arm64 for docker on macos/apple, amd64 for linux/intel)
+RUN ARCH=$(dpkg --print-architecture) \
+  && curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${ARCH}" -o /usr/local/bin/caddy \
   && chmod a+x /usr/local/bin/caddy
 
-# Install bun
-RUN curl -fsSL 'https://bun.sh/install' | bash
-ENV PATH="/root/.bun/bin:${PATH}"
-
 # Install opencode
-# - "Install" node as bun, for the opencode shebang
-RUN bun install -g opencode-ai@latest \
-  && ln -s /root/.bun/bin/bun /usr/local/bin/node
+RUN npm install -g opencode-ai@latest
 
-# Setup python env
+# Setup node deps
+# - Restrict COPY to just package.json, because `COPY . .` busts cache on _any_ file change -- annoying in dev
+COPY package.json .
+RUN npm install
+
+# Setup python venv
 # - Restrict COPY to just requirements.txt, because `COPY . .` busts cache on _any_ file change -- annoying in dev
 # - Precompile .pyc at build time so the slow shared CPU doesn't have to at startup
 COPY requirements.txt .

@@ -157,13 +157,16 @@ This lets `/` serve our custom frontend, while `/session/*` loads the opencode w
 
 ### One-time setup
 ```sh
-# Setup local venv w/ python deps
-uv venv && uv pip install -r requirements.txt
+# Setup python deps (requires uv)
+dev/venv
+
+# Setup node deps (requires node via nodenv, see .node-version)
+dev/node-setup
 ```
 
 ### Build/check
 ```sh
-# Typecheck + lint
+# Typecheck + lint (python + frontend)
 dev/check
 ```
 

@@ -9,10 +9,5 @@ function show_cmd() {
   "$@"
 }
 
-# Backend (python)
-show_cmd ruff check .
-show_cmd ruff format --check .
-show_cmd pyright
-
-# Frontend (ts, css)
-show_cmd npx biome check frontend/
+show_cmd npm install
+show_cmd npx biome --version
