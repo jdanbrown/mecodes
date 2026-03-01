@@ -217,15 +217,28 @@ async function api(method, path, body) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
   }
-  const r = await fetch(path, opts);
+  const t0 = performance.now();
+  console.log(`API ${method} ${path}`);
+  let r;
+  try {
+    r = await fetch(path, opts);
+  } catch (e) {
+    console.error(`API ${method} ${path} network error after ${ms(t0)}:`, e.message);
+    throw e;
+  }
   if (!r.ok) {
     const txt = await r.text().catch(() => "");
+    console.error(`API ${method} ${path} ${r.status} after ${ms(t0)}:`, txt);
     throw new Error(`${r.status}: ${txt}`);
   }
+  console.log(`API ${method} ${path} ${r.status} in ${ms(t0)}`);
   if (r.status === 204 || r.headers.get("content-length") === "0") return null;
   const ct = r.headers.get("content-type") || "";
   if (ct.includes("application/json")) return r.json();
   return null;
+}
+function ms(t0) {
+  return `${Math.round(performance.now() - t0)}ms`;
 }
 const get = (p) => api("GET", p);
 const post = (p, b) => api("POST", p, b);
@@ -343,10 +356,20 @@ async function abortSession() {
 }
 
 // --- New session flow ---
+const repPickerHTML = [
+  '<div class="repo-search-wrap">',
+  '  <input class="form-input" id="repoSearch" placeholder="Search repos…" autocomplete="off" spellcheck="false">',
+  "</div>",
+  '<div class="repo-list" id="repoList">',
+  '  <div class="session-empty">Loading repos…</div>',
+  "</div>",
+].join("\n");
+
 async function openNewPanel() {
   closeReposPanel();
-  const panel = document.getElementById("newPanel");
-  panel.classList.add("visible");
+  // Restore repo picker DOM in case a previous startNewSession replaced it with progress text
+  document.getElementById("newPanelBody").innerHTML = repPickerHTML;
+  document.getElementById("newPanel").classList.add("visible");
   document.getElementById("newBtn").classList.add("active");
   document.getElementById("repoSearch").value = "";
   document.getElementById("repoSearch").focus();
@@ -412,7 +435,6 @@ function renderRepoPicker() {
 
 async function startNewSession(repoFullName, defaultBranch) {
   const panel = document.getElementById("newPanelBody");
-  const prevHTML = panel.innerHTML;
   panel.innerHTML = `<div class="session-empty">Setting up ${esc(repoFullName)}…</div>`;
 
   try {
@@ -439,7 +461,7 @@ async function startNewSession(repoFullName, defaultBranch) {
     closeNewPanel();
   } catch (e) {
     alert(`Failed: ${e.message}`);
-    panel.innerHTML = prevHTML;
+    // openNewPanel() will restore the repo picker HTML next time it's opened
   }
 }
 
