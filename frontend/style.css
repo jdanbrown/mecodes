@@ -502,16 +502,24 @@ body {
   gap: 0.5rem;
   align-items: flex-end;
 }
+.prompt-row.hidden {
+  display: none;
+}
 .prompt-wrap {
   flex: 1;
   position: relative;
 }
 
-/* Model picker */
-.model-bar {
+/* Picker bar (repo + model pickers above textarea) */
+.picker-bar {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+.picker-bar-item {
   position: relative;
 }
-.model-btn {
+.picker-btn {
   background: none;
   border: none;
   color: var(--dim);
@@ -520,17 +528,16 @@ body {
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
 }
-.model-btn:hover {
+.picker-btn:hover {
   color: var(--text);
   background: var(--bg3);
 }
-.model-panel {
+.picker-panel {
   display: none;
   position: absolute;
   bottom: 100%;
   left: 0;
-  right: 0;
-  min-width: 260px;
+  min-width: 280px;
   max-height: 50vh;
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -540,9 +547,20 @@ body {
   margin-bottom: 0.25rem;
   flex-direction: column;
 }
-.model-panel.visible {
+.picker-panel.visible {
   display: flex;
 }
+.picker-panel-search {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.picker-panel-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Model picker items */
 .model-provider {
   padding: 0.4rem 0.75rem 0.2rem;
   font-size: 0.68rem;
@@ -553,15 +571,6 @@ body {
   background: var(--bg3);
   position: sticky;
   top: 0;
-}
-.model-search-wrap {
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.model-list {
-  overflow-y: auto;
-  flex: 1;
 }
 .model-item {
   padding: 0.45rem 0.75rem;
@@ -606,6 +615,33 @@ body {
 .model-star.starred {
   opacity: 1;
   color: var(--orange);
+}
+
+/* Repo picker items */
+.repo-picker-item {
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.repo-picker-item:last-child {
+  border-bottom: none;
+}
+.repo-picker-item:hover {
+  background: var(--bg3);
+}
+.repo-picker-item.active {
+  color: var(--blue);
+  background: rgba(88, 166, 255, 0.08);
+}
+.repo-picker-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .msg-model {
   font-weight: 400;

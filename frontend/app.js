@@ -19,9 +19,10 @@ let selectedModel = null;
 let providers = [];
 let connectedProviders = []; // provider IDs that are connected
 
-// Favorites + last model (localStorage-backed)
+// Favorites + last model + last repo (localStorage-backed)
 const LS_FAVORITES = "dancodes:favoriteModels";
 const LS_LAST_MODEL = "dancodes:lastModel";
+const LS_LAST_REPO = "dancodes:lastRepo";
 
 function loadFavorites() {
   try {
@@ -60,6 +61,20 @@ function loadLastModel() {
 
 function saveLastModel(model) {
   localStorage.setItem(LS_LAST_MODEL, JSON.stringify(model));
+}
+
+// { full_name, default_branch } or null
+function loadLastRepo() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_LAST_REPO));
+  } catch {
+    return null;
+  }
+}
+
+function saveLastRepo(repo) {
+  localStorage.setItem(LS_LAST_REPO, JSON.stringify(repo));
+  renderRepoBtn();
 }
 
 // --- Model picker ---
@@ -208,6 +223,72 @@ function pickModel(providerID, modelID, name) {
   saveLastModel(selectedModel);
   renderModelBtn();
   closeModelPicker();
+}
+
+// --- Repo picker (input area widget) ---
+function renderRepoBtn() {
+  const btn = document.getElementById("repoBtn");
+  if (!btn) return;
+  const last = loadLastRepo();
+  const label = last ? last.full_name.split("/").pop() : "Repo…";
+  btn.textContent = label;
+  btn.title = last ? last.full_name : "Select repo for new sessions";
+}
+
+function openRepoPicker() {
+  const panel = document.getElementById("repoPickerPanel");
+  panel.classList.toggle("visible");
+  if (panel.classList.contains("visible")) {
+    const searchInput = document.getElementById("repoPickerSearch");
+    if (searchInput) searchInput.value = "";
+    renderRepoPickerList();
+    if (searchInput) searchInput.focus();
+    // Load data in background, re-render when ready
+    loadRepoPickerData().then(renderRepoPickerList);
+  }
+}
+
+function closeRepoPicker() {
+  document.getElementById("repoPickerPanel").classList.remove("visible");
+}
+
+function renderRepoPickerList() {
+  const container = document.getElementById("repoPickerList");
+  if (!container) return;
+  const query = (document.getElementById("repoPickerSearch")?.value || "").toLowerCase();
+  const lastRepo = loadLastRepo();
+
+  let repos = githubRepos.map((r) => ({
+    ...r,
+    cloned: clonedRepos.includes(r.full_name),
+  }));
+
+  if (query) {
+    repos = repos.filter(
+      (r) => r.full_name.toLowerCase().includes(query) || (r.description || "").toLowerCase().includes(query),
+    );
+  }
+
+  if (!repos.length) {
+    const msg = githubRepos.length === 0 && !query ? "Loading…" : "No repos found";
+    container.innerHTML = `<div class="session-empty">${msg}</div>`;
+    return;
+  }
+
+  container.innerHTML = repos
+    .map((r) => {
+      const active = lastRepo?.full_name === r.full_name ? " active" : "";
+      const badge = r.cloned ? '<span class="repo-badge cloned">cloned</span>' : "";
+      return `<div class="repo-picker-item${active}" onclick="pickRepo('${esc(r.full_name)}', '${esc(r.default_branch)}')">
+      <span class="repo-picker-name">${esc(r.full_name)}</span> ${badge}
+    </div>`;
+    })
+    .join("");
+}
+
+function pickRepo(fullName, defaultBranch) {
+  saveLastRepo({ full_name: fullName, default_branch: defaultBranch });
+  closeRepoPicker();
 }
 
 // --- API ---
@@ -366,6 +447,27 @@ const repPickerHTML = [
 ].join("\n");
 
 async function openNewPanel() {
+  // If we have a last-used repo, skip the picker and auto-start
+  const lastRepo = loadLastRepo();
+  if (lastRepo) {
+    closeReposPanel();
+    closeSidebar();
+    // Show progress in the main empty-state area
+    currentId = null;
+    document.getElementById("inputArea").classList.remove("visible");
+    document.getElementById("messages").innerHTML =
+      `<div class="empty-state"><p>Setting up ${esc(lastRepo.full_name)}…</p></div>`;
+    document.getElementById("chatTitle").textContent = "New session";
+    document.getElementById("chatTitle").className = "chat-title";
+    await startNewSession(lastRepo.full_name, lastRepo.default_branch);
+    // On failure, startNewSession shows an alert but doesn't throw — restore UI
+    if (!currentId) renderMain();
+    return;
+  }
+  openRepoPickerPanel();
+}
+
+function openRepoPickerPanel() {
   closeReposPanel();
   // Restore repo picker DOM in case a previous startNewSession replaced it with progress text
   document.getElementById("newPanelBody").innerHTML = repPickerHTML;
@@ -373,8 +475,7 @@ async function openNewPanel() {
   document.getElementById("newBtn").classList.add("active");
   document.getElementById("repoSearch").value = "";
   document.getElementById("repoSearch").focus();
-  await loadRepoPickerData();
-  renderRepoPicker();
+  loadRepoPickerData().then(renderRepoPicker);
 }
 
 function closeNewPanel() {
@@ -434,6 +535,8 @@ function renderRepoPicker() {
 }
 
 async function startNewSession(repoFullName, defaultBranch) {
+  saveLastRepo({ full_name: repoFullName, default_branch: defaultBranch });
+
   const panel = document.getElementById("newPanelBody");
   panel.innerHTML = `<div class="session-empty">Setting up ${esc(repoFullName)}…</div>`;
 
@@ -716,8 +819,10 @@ function setSessionListHTML(html) {
 
 function renderMain() {
   const inputArea = document.getElementById("inputArea");
+  const promptRow = document.getElementById("promptRow");
   if (!currentId) {
-    inputArea.classList.remove("visible");
+    inputArea.classList.add("visible");
+    promptRow.classList.add("hidden");
     document.getElementById("messages").innerHTML =
       '<div class="empty-state"><h2>dancodes</h2><p>Select a session or create a new one</p></div>';
     document.getElementById("chatTitle").textContent = "Select a session";
@@ -726,6 +831,7 @@ function renderMain() {
     return;
   }
   inputArea.classList.add("visible");
+  promptRow.classList.remove("hidden");
   renderChatTitle();
   renderAbortBtn();
 }
@@ -871,6 +977,8 @@ document.getElementById("reposPanelClose").onclick = closeReposPanel;
 document.getElementById("sendBtn").onclick = sendPrompt;
 document.getElementById("abortBtn").onclick = abortSession;
 document.getElementById("modelBtn").onclick = openModelPicker;
+document.getElementById("repoBtn").onclick = openRepoPicker;
+document.getElementById("repoPickerSearch").addEventListener("input", renderRepoPickerList);
 document.getElementById("menuBtn").onclick = () => {
   document.getElementById("sidebar").classList.toggle("open");
   document.getElementById("overlay").classList.toggle("visible");
@@ -887,12 +995,17 @@ document.getElementById("prompt").addEventListener("input", function () {
   autoResize(this);
 });
 
-// Close model picker when clicking outside
+// Close pickers when clicking outside
 document.addEventListener("click", (e) => {
-  const panel = document.getElementById("modelPanel");
-  const btn = document.getElementById("modelBtn");
-  if (panel.classList.contains("visible") && !panel.contains(e.target) && e.target !== btn) {
+  const modelPanel = document.getElementById("modelPanel");
+  const modelBtn = document.getElementById("modelBtn");
+  if (modelPanel.classList.contains("visible") && !modelPanel.contains(e.target) && e.target !== modelBtn) {
     closeModelPicker();
+  }
+  const repoPanel = document.getElementById("repoPickerPanel");
+  const repoBtn = document.getElementById("repoBtn");
+  if (repoPanel.classList.contains("visible") && !repoPanel.contains(e.target) && e.target !== repoBtn) {
+    closeRepoPicker();
   }
 });
 
@@ -904,11 +1017,14 @@ window.deleteRepo = deleteRepo;
 window.deleteWorktree = deleteWorktree;
 window.pickModel = pickModel;
 window.toggleFavorite = toggleFavorite;
+window.pickRepo = pickRepo;
 
 // --- Init ---
+renderMain();
 checkHealth();
 loadSessions();
 loadProviders();
+renderRepoBtn();
 connectSSE();
 setInterval(checkHealth, 30_000);
 

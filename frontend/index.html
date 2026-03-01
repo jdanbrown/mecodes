@@ -68,16 +68,27 @@
     </div>
 
     <div class="input-area" id="inputArea">
-      <div class="model-bar">
-        <button class="model-btn" id="modelBtn" title="Select model">Model…</button>
-        <div class="model-panel" id="modelPanel">
-          <div class="model-search-wrap">
-            <input class="form-input" id="modelSearch" placeholder="Search models…" autocomplete="off" spellcheck="false">
+      <div class="picker-bar">
+        <div class="picker-bar-item">
+          <button class="picker-btn" id="repoBtn" title="Select repo for new sessions">Repo…</button>
+          <div class="picker-panel" id="repoPickerPanel">
+            <div class="picker-panel-search">
+              <input class="form-input" id="repoPickerSearch" placeholder="Search repos…" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="picker-panel-list" id="repoPickerList"></div>
           </div>
-          <div class="model-list" id="modelList"></div>
+        </div>
+        <div class="picker-bar-item">
+          <button class="picker-btn" id="modelBtn" title="Select model">Model…</button>
+          <div class="picker-panel" id="modelPanel">
+            <div class="picker-panel-search">
+              <input class="form-input" id="modelSearch" placeholder="Search models…" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="picker-panel-list" id="modelList"></div>
+          </div>
         </div>
       </div>
-      <div class="prompt-row">
+      <div class="prompt-row" id="promptRow">
         <div class="prompt-wrap">
           <textarea id="prompt" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
         </div>
