@@ -1,6 +1,6 @@
 # Memory
 - A living document to maintain our "institutional memory" across many llm chat sessions and long spans of time
-  - Write down lessons, gotchas, surprises -- anything non-obvious that burned us once will likely burn us again, if we don't write it down so future llm sessions can recall it
+  - Write down lessons, gotchas, surprises — anything non-obvious that burned us once will likely burn us again, if we don't write it down so future llm sessions can recall it
   - But first, always prefer code comments when appropriate, but for anything that doesn't naturally fit into the code, write it down here
 - Style and formatting:
   - Include a date prefix, and order new (top) to old (bottom)
@@ -13,7 +13,7 @@
 ## Memory log
 - [2026-02-28] Replaced bun with real node in Dockerfile
   - Previously: bun installed, `ln -s bun node` to satisfy opencode's `#!/usr/bin/env node` shebang
-  - Now: real node via nodesource apt repo, no bun -- same `node`/`npm`/`npx` commands in local dev and prod
+  - Now: real node via nodesource apt repo, no bun — same `node`/`npm`/`npx` commands in local dev and prod
   - Frontend tooling: biome (lint + format) via `npm install`, checked by `dev/check`
 - [2026-02-26] OpenCode internals (reference)
   - TypeScript, runs on Bun, Hono web framework

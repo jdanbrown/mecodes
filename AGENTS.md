@@ -1,15 +1,15 @@
 # Working model
 This project is built entirely from a phone, chatting with an llm
 - The human never writes or reads the code directly, the llm does all code work.
-- The llm does all the work -- read/write code, run checks/test, read logs, etc.
+- The llm does all the work — read/write code, run checks/test, read logs, etc.
 - The human does actively view and use the web app in a mobile browser, but beyond that their hands-on capabilities are very limited
 - Some steps like deploys should be automated (see `README.md` for authority)
 
 ## Docs
-- `README.md` -- purpose and design
-- `AGENTS.md` -- working model for llms (this doc)
-- `MEMORY.md` -- institutional memory for llms
-- `BACKLOG.md` -- backlog of ideas for the future
+- `README.md` — purpose and design
+- `AGENTS.md` — working model for llms (this doc)
+- `MEMORY.md` — institutional memory for llms
+- `BACKLOG.md` — backlog of ideas for the future
 
 ## Guiding principles
 - **Close the loop**: The human can only verify by using the web app on a phone. The llm must verify changes before considering them done.
@@ -19,9 +19,9 @@ This project is built entirely from a phone, chatting with an llm
 - **Observability**: Good observability (logging, error msgs, etc.) is critical to understanding and debugging a system, by llms or humans.
 
 ## Working style
-- This is a personal-use project -- optimize for simplicity and speed over polish
-- Cut corners on scale, resource multiplexing, multi-tenancy -- it's one user on one machine
-- Surface internal state to the user rather than hiding it -- better to see and control than to hide away
+- This is a personal-use project — optimize for simplicity and speed over polish
+- Cut corners on scale, resource multiplexing, multi-tenancy — it's one user on one machine
+- Surface internal state to the user rather than hiding it — better to see and control than to hide away
 - If a solution seems unreasonably complex, pause and discuss approaches before diving in
 
 ## Institutional memory
@@ -32,13 +32,13 @@ This project is built entirely from a phone, chatting with an llm
 ## Codebase review
 - Track the last review date and commit sha in `MEMORY.md` under "Last codebase review"
 - If the last review was a while ago (~20 commits), let the human know, "We haven't done a codebase review since <date> <commit>"
-- If they ignore it, then focus on their task and leave the codebase review for a future llm session -- don't derail their focus
+- If they ignore it, then focus on their task and leave the codebase review for a future llm session — don't derail their focus
 - If they go for the codebase review, then update `MEMORY.md` afterwards to reflect
 
 ## Backlog
-- Don't read `BACKLOG.md` by default -- load it only when the human asks about the "backlog"
+- Don't read `BACKLOG.md` by default — load it only when the human asks about the "backlog"
 - Update `BACKLOG.md` if the human asks you to save something to the "backlog"
-- Don't update `BACKLOG.md` if the human doesn't explicitly mention "backlog" -- e.g. "save that for later" often means within the same session, not "go write this down in a file for another day"
+- Don't update `BACKLOG.md` if the human doesn't explicitly mention "backlog" — e.g. "save that for later" often means within the same session, not "go write this down in a file for another day"
 
 ## Coding style
 - No trailing whitespace at the end of lines
@@ -49,7 +49,7 @@ This project is built entirely from a phone, chatting with an llm
   - Do add comments explaining the "why" of the code, when it's not self-evident
   - Do add comments to explain things that are non-obvious, tricky, or gotchas to avoid
   - Do use comments to label or structure large or complex blocks of code
-  - Don't add comments explaining that you removed some code in an edit -- the code is gone, future readers don't care!
+  - Don't add comments explaining that you removed some code in an edit — the code is gone, future readers don't care!
   - Don't include comments about each diff to the code, only comments that are useful looking at the latest state
 - Make the "what" self-evident through clear naming and structure. Use comments to explain why the code does this "what" instead of other "whats".
 
@@ -62,15 +62,15 @@ This project is built entirely from a phone, chatting with an llm
 ## Tests/checks
 - Always run `dev/check` and confirm it passes before committing
   - If it fails, fix the issues and re-run until it passes
-  - Don't commit or push with failing checks -- the human can't fix these from their phone
+  - Don't commit or push with failing checks — the human can't fix these from their phone
 
 ## Searching docs and examples
-- Code apis change often -- eagerly search with `context7` tool to avoid outdated knowledge
+- Code apis change often — eagerly search with `context7` tool to avoid outdated knowledge
 - Use `github_grep` to search for code examples across github repos
-- Use `webfetch` to search the web -- prefer duckduckgo (simple html), not google (requires js)
+- Use `webfetch` to search the web — prefer duckduckgo (simple html), not google (requires js)
 
 ## Tools
 - There's an LSP server that runs continuously, so expect to see spurious compile/analysis errors reported after every intermediate code edit you make
-  - Don't let these distract you -- they don't indicate real problems until you've finished your edits
-  - But do fix up LSP errors once your intermediate edits are done -- don't leave a mess
+  - Don't let these distract you — they don't indicate real problems until you've finished your edits
+  - But do fix up LSP errors once your intermediate edits are done — don't leave a mess
 - This is a small repo, so feel free to list the whole thing

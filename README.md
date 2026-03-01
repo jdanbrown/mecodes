@@ -1,14 +1,14 @@
 # mecodes
 Personal service like claude code web, using opencode, with a mobile frontend
-- [`README.md`](README.md) -- purpose and design (this doc)
-- [`AGENTS.md`](AGENTS.md) -- working model for llms
-- [`MEMORY.md`](MEMORY.md) -- institutional memory for llms
-- [`BACKLOG.md`](BACKLOG.md) -- backlog of ideas for the future
+- [`README.md`](README.md) — purpose and design (this doc)
+- [`AGENTS.md`](AGENTS.md) — working model for llms
+- [`MEMORY.md`](MEMORY.md) — institutional memory for llms
+- [`BACKLOG.md`](BACKLOG.md) — backlog of ideas for the future
 
 ## Motivation
 - The mobile/async UX of Claude Code Web is great (fire-and-forget from phone)
 - But: usage limits, flakiness, slowness on the $20/mo plan
-- Opencode + openrouter on laptop is already great -- let's extend it to mobile
+- Opencode + openrouter on laptop is already great — let's extend it to mobile
 
 ## Architecture
 ```
@@ -33,7 +33,7 @@ So the frontend can talk to the opencode API directly. No orchestrator/proxy nee
 - Caddy uses `forward_auth` to check a session cookie on every request (except health check + auth endpoints)
 - Sidecar handles auth: login page (`GET /auth/login`), form submit (`POST /auth/login`), cookie check (`GET /auth/check`)
 - Cookie is HMAC-signed with `AUTH_SECRET`, expires after 30 days
-- `OPENCODE_SERVER_PASSWORD` left **unset** on opencode serve -- Caddy + sidecar are the auth wall
+- `OPENCODE_SERVER_PASSWORD` left **unset** on opencode serve — Caddy + sidecar are the auth wall
 - Rationale: cookie auth avoids constant re-prompting (unlike basic auth), works uniformly across all routes
 
 ### Deploys: no drain needed
@@ -90,7 +90,7 @@ Auto-generated OpenAPI docs at `/admin/docs`.
 
 ## Hosting: Fly.io
 - 1 machine (`shared-cpu-2x`, 1GB RAM) + 1 volume (10GB), estimated ~$5-15/mo
-- **`auto_stop_machines = "off"`** -- critical, otherwise Fly kills the machine mid-task
+- **`auto_stop_machines = "off"`** — critical, otherwise Fly kills the machine mid-task
 - Volume is single-attach (fine for 1 machine)
 - Health check: `/admin/health` (sidecar) checks opencode liveness, unauthenticated in Caddy
   - No ongoing Fly health checks (too noisy for personal use)
@@ -120,8 +120,8 @@ Single Dockerfile, all files under `/opt/mecodes/`. Three processes managed by `
 opencode and sidecar are backgrounded. `run` waits for opencode's `/global/health` before starting Caddy.
 
 ### Caddy routing
-- `/admin/health` → sidecar `:4097` (unauthenticated -- Fly health check)
-- `/auth/*` → sidecar `:4097` (unauthenticated -- login page + form)
+- `/admin/health` → sidecar `:4097` (unauthenticated — Fly health check)
+- `/auth/*` → sidecar `:4097` (unauthenticated — login page + form)
 - All other routes → `forward_auth` cookie check via sidecar, then:
   - `/admin/*` → sidecar `:4097`
   - Static file match → our frontend (e.g. `/` → `index.html`)
@@ -135,17 +135,17 @@ This lets `/` serve our custom frontend, while `/session/*` loads the opencode w
 3. opencode + sidecar start in background (sidecar is ready almost instantly)
 4. opencode does SQLite migration on first boot, then ready on `:4096` (~20s)
 5. `run` health-check loop detects opencode, starts Caddy on `:8080`
-6. `fly deploy` exits early (before app is ready) -- no deploy-time health check configured
+6. `fly deploy` exits early (before app is ready) — no deploy-time health check configured
 
 ### Secrets (set via `fly secrets set`)
-- `AUTH_PASSWORD` -- login password
-- `AUTH_SECRET` -- HMAC key for signing session cookies (random string)
-- `GITHUB_TOKEN` -- GitHub PAT for private repo access
-- `OPENROUTER_API_KEY` -- (or whichever provider env opencode needs)
+- `AUTH_PASSWORD` — login password
+- `AUTH_SECRET` — HMAC key for signing session cookies (random string)
+- `GITHUB_TOKEN` — GitHub PAT for private repo access
+- `OPENROUTER_API_KEY` — (or whichever provider env opencode needs)
 
 ### Non-secret env (in fly.toml `[env]`)
-- `GITHUB_USER` -- GitHub username for repo lookups
-- `OPENCODE_HOME` -- `/vol/opencode-state` (SQLite on persistent volume)
+- `GITHUB_USER` — GitHub username for repo lookups
+- `OPENCODE_HOME` — `/vol/opencode-state` (SQLite on persistent volume)
 
 ### Sidecar implementation
 - Python + FastAPI, chosen for speed of development
