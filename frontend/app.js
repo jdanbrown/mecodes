@@ -1,10 +1,16 @@
 // --- State ---
 let sessions = [];
 let currentId = null;
-const messages = {}; // sessionId -> [{id, role, parts}]
-const streaming = {}; // sessionId -> {msgId -> accumulated text}
+// sessionId -> [{ info: {id, role, sessionID, ...}, parts: [{type, ...}] }]
+const messages = {};
+// sessionId -> { partId -> accumulated delta text } (for streaming)
+const deltas = {};
 const generating = {}; // sessionId -> bool
 let sse = null;
+
+let githubRepos = []; // cached from /admin/repos/github
+let clonedRepos = []; // cached from /admin/repos
+let allWorktrees = []; // cached from /admin/worktrees
 
 // --- API ---
 async function api(method, path, body) {
@@ -46,29 +52,11 @@ async function checkHealth() {
 async function loadSessions() {
   try {
     const data = await get("/session");
-    // opencode may return array directly or {sessions:[...]}
     sessions = Array.isArray(data) ? data : (data?.sessions ?? []);
     renderSessionList();
   } catch (e) {
     console.error("loadSessions:", e);
     setSessionListHTML('<div class="session-empty">Failed to load sessions</div>');
-  }
-}
-
-async function createSession() {
-  const dir = document.getElementById("dirInput").value.trim() || undefined;
-  document.getElementById("createBtn").disabled = true;
-  try {
-    const s = await post("/session", dir ? { directory: dir } : {});
-    // Avoid duplicates if SSE already added it
-    if (!sessions.find((x) => x.id === s.id)) sessions.unshift(s);
-    renderSessionList();
-    await selectSession(s.id);
-    closeNewForm();
-  } catch (e) {
-    alert(`Failed to create session: ${e.message}`);
-  } finally {
-    document.getElementById("createBtn").disabled = false;
   }
 }
 
@@ -78,7 +66,6 @@ async function deleteSession(id, ev) {
   try {
     await del(`/session/${id}`);
   } catch (e) {
-    // 404 is fine — already gone
     if (!e.message.startsWith("404")) {
       alert(`Failed: ${e.message}`);
       return;
@@ -86,7 +73,7 @@ async function deleteSession(id, ev) {
   }
   sessions = sessions.filter((s) => s.id !== id);
   delete messages[id];
-  delete streaming[id];
+  delete deltas[id];
   if (currentId === id) {
     currentId = null;
     renderMain();
@@ -105,10 +92,9 @@ async function selectSession(id) {
 
 async function fetchMessages(id) {
   try {
-    const data = await get(`/session/${id}`);
-    // opencode returns session object; messages are in data.messages or nested
-    const msgs = data?.messages ?? data?.chat?.messages ?? [];
-    messages[id] = msgs;
+    const data = await get(`/session/${id}/message`);
+    // v2 format: [{ info: {id, role, ...}, parts: [...] }]
+    messages[id] = Array.isArray(data) ? data : [];
   } catch (e) {
     console.error("fetchMessages:", e);
     messages[id] = [];
@@ -126,12 +112,15 @@ async function sendPrompt() {
 
   // Optimistic user message
   if (!messages[currentId]) messages[currentId] = [];
-  messages[currentId].push({ id: `opt-${Date.now()}`, role: "user", parts: [{ type: "text", text }] });
+  messages[currentId].push({
+    info: { id: `opt-${Date.now()}`, role: "user", sessionID: currentId },
+    parts: [{ type: "text", text }],
+  });
   renderMessages();
 
   try {
     await post(`/session/${currentId}/prompt_async`, {
-      content: [{ type: "text", text }],
+      parts: [{ type: "text", text }],
     });
     generating[currentId] = true;
     renderAbortBtn();
@@ -153,6 +142,189 @@ async function abortSession() {
   renderAbortBtn();
 }
 
+// --- New session flow ---
+async function openNewPanel() {
+  closeReposPanel();
+  const panel = document.getElementById("newPanel");
+  panel.classList.add("visible");
+  document.getElementById("newBtn").classList.add("active");
+  document.getElementById("repoSearch").value = "";
+  document.getElementById("repoSearch").focus();
+  await loadRepoPickerData();
+  renderRepoPicker();
+}
+
+function closeNewPanel() {
+  document.getElementById("newPanel").classList.remove("visible");
+  document.getElementById("newBtn").classList.remove("active");
+}
+
+async function loadRepoPickerData() {
+  try {
+    const [ghData, clonedData] = await Promise.all([
+      get("/admin/repos/github").catch((e) => {
+        console.error("GitHub repos:", e);
+        return null;
+      }),
+      get("/admin/repos"),
+    ]);
+    githubRepos = ghData?.repos ?? [];
+    clonedRepos = clonedData?.repos ?? [];
+  } catch (e) {
+    console.error("loadRepoPickerData:", e);
+  }
+}
+
+function renderRepoPicker() {
+  const query = (document.getElementById("repoSearch").value || "").toLowerCase();
+  const container = document.getElementById("repoList");
+
+  let repos = githubRepos.map((r) => ({
+    ...r,
+    cloned: clonedRepos.includes(r.full_name),
+  }));
+
+  if (query) {
+    repos = repos.filter(
+      (r) => r.full_name.toLowerCase().includes(query) || (r.description || "").toLowerCase().includes(query),
+    );
+  }
+
+  if (!repos.length) {
+    const msg = githubRepos.length === 0 && !query ? "No repos available — check GITHUB_TOKEN?" : "No repos found";
+    container.innerHTML = `<div class="session-empty">${msg}</div>`;
+    return;
+  }
+
+  container.innerHTML = repos
+    .map((r) => {
+      const badge = r.cloned ? '<span class="repo-badge cloned">cloned</span>' : "";
+      const priv = r.private ? '<span class="repo-badge private">private</span>' : "";
+      return `<div class="repo-item" onclick="startNewSession('${esc(r.full_name)}', '${esc(r.default_branch)}')">
+      <div class="repo-item-info">
+        <div class="repo-item-name">${esc(r.full_name)} ${badge} ${priv}</div>
+        ${r.description ? `<div class="repo-item-desc">${esc(r.description)}</div>` : ""}
+      </div>
+    </div>`;
+    })
+    .join("");
+}
+
+async function startNewSession(repoFullName, defaultBranch) {
+  const panel = document.getElementById("newPanelBody");
+  const prevHTML = panel.innerHTML;
+  panel.innerHTML = `<div class="session-empty">Setting up ${esc(repoFullName)}…</div>`;
+
+  try {
+    if (!clonedRepos.includes(repoFullName)) {
+      panel.innerHTML = `<div class="session-empty">Cloning ${esc(repoFullName)}…</div>`;
+      await post("/admin/repos/clone", { repo: repoFullName });
+      clonedRepos.push(repoFullName);
+    }
+
+    panel.innerHTML = `<div class="session-empty">Creating worktree…</div>`;
+    const wtId = crypto.randomUUID().slice(0, 12);
+    const wt = await post("/admin/worktrees", {
+      repo: repoFullName,
+      session_id: wtId,
+      branch: defaultBranch || "main",
+    });
+
+    panel.innerHTML = `<div class="session-empty">Creating session…</div>`;
+    const session = await post("/session", { directory: wt.path });
+
+    if (!sessions.find((x) => x.id === session.id)) sessions.unshift(session);
+    renderSessionList();
+    await selectSession(session.id);
+    closeNewPanel();
+  } catch (e) {
+    alert(`Failed: ${e.message}`);
+    panel.innerHTML = prevHTML;
+  }
+}
+
+// --- Repos & worktrees management panel ---
+async function openReposPanel() {
+  closeNewPanel();
+  const panel = document.getElementById("reposPanel");
+  panel.classList.add("visible");
+  document.getElementById("reposBtn").classList.add("active");
+  await loadReposData();
+  renderReposPanel();
+}
+
+function closeReposPanel() {
+  document.getElementById("reposPanel").classList.remove("visible");
+  document.getElementById("reposBtn").classList.remove("active");
+}
+
+async function loadReposData() {
+  try {
+    const [clonedData, wtData] = await Promise.all([get("/admin/repos"), get("/admin/worktrees")]);
+    clonedRepos = clonedData?.repos ?? [];
+    allWorktrees = wtData?.worktrees ?? [];
+  } catch (e) {
+    console.error("loadReposData:", e);
+  }
+}
+
+function renderReposPanel() {
+  const container = document.getElementById("reposPanelBody");
+
+  if (!clonedRepos.length) {
+    container.innerHTML = '<div class="session-empty">No repos cloned yet</div>';
+    return;
+  }
+
+  let html = "";
+  for (const repo of clonedRepos) {
+    const wts = allWorktrees.filter((w) => w.repo === repo);
+    const [owner, name] = repo.split("/");
+    html += `<div class="mgmt-repo">
+      <div class="mgmt-repo-header">
+        <span class="mgmt-repo-name">${esc(repo)}</span>
+        <button class="session-del visible-always" onclick="deleteRepo('${esc(owner)}', '${esc(name)}')" title="Delete repo">✕</button>
+      </div>`;
+    if (wts.length) {
+      html += '<div class="mgmt-wt-list">';
+      for (const wt of wts) {
+        html += `<div class="mgmt-wt-item">
+          <span class="mgmt-wt-session">${esc(wt.session_id?.slice(0, 14) || "unknown")}</span>
+          <button class="session-del visible-always" onclick="deleteWorktree('${esc(owner)}', '${esc(name)}', '${esc(wt.session_id)}')" title="Delete worktree">✕</button>
+        </div>`;
+      }
+      html += "</div>";
+    } else {
+      html += '<div class="mgmt-wt-empty">No worktrees</div>';
+    }
+    html += "</div>";
+  }
+
+  container.innerHTML = html;
+}
+
+async function deleteRepo(owner, name) {
+  if (!confirm(`Delete repo ${owner}/${name} and all its worktrees?`)) return;
+  try {
+    await del(`/admin/repos/${owner}/${name}`);
+    await loadReposData();
+    renderReposPanel();
+  } catch (e) {
+    alert(`Failed: ${e.message}`);
+  }
+}
+
+async function deleteWorktree(owner, name, sessionId) {
+  if (!confirm(`Delete worktree for session ${sessionId.slice(0, 14)}?`)) return;
+  try {
+    await del(`/admin/worktrees/${owner}/${name}/${sessionId}`);
+    await loadReposData();
+    renderReposPanel();
+  } catch (e) {
+    alert(`Failed: ${e.message}`);
+  }
+}
+
 // --- SSE ---
 function connectSSE() {
   if (sse) sse.close();
@@ -168,22 +340,9 @@ function connectSSE() {
     el.textContent = "○ reconnecting";
     el.style.color = "var(--orange)";
   };
+  // opencode sends all events as unnamed SSE messages (no "event:" field),
+  // so onmessage catches everything
   sse.onmessage = (ev) => handleEvent(ev.data);
-
-  // Named event types opencode may emit
-  for (const t of [
-    "message",
-    "session",
-    "session.created",
-    "session.updated",
-    "message.created",
-    "message.updated",
-    "message.part",
-    "assistant.streaming",
-    "assistant.done",
-  ]) {
-    sse.addEventListener(t, (ev) => handleEvent(ev.data));
-  }
 }
 
 function handleEvent(raw) {
@@ -195,52 +354,114 @@ function handleEvent(raw) {
   }
   if (!ev) return;
 
-  const type = ev.type ?? ev.event ?? "";
-  const sid = ev.sessionId ?? ev.session_id ?? ev.session?.id ?? null;
-
-  // Session list updates
-  if (type.includes("session") && ev.session) {
-    const idx = sessions.findIndex((s) => s.id === ev.session.id);
-    if (idx >= 0) sessions[idx] = ev.session;
-    else if (type.includes("created")) sessions.unshift(ev.session);
-    renderSessionList();
-    if (ev.session.id === currentId) renderChatTitle();
-  }
-
-  // Message upsert
-  if (ev.message && sid) {
-    if (!messages[sid]) messages[sid] = [];
-    const list = messages[sid];
-    const idx = list.findIndex((m) => m.id === ev.message.id);
-    if (idx >= 0) list[idx] = ev.message;
-    else list.push(ev.message);
-    // Clear streaming for this message once it's committed
-    if (streaming[sid]?.[ev.message.id]) delete streaming[sid][ev.message.id];
-    if (sid === currentId) renderMessages();
-  }
-
-  // Streaming text parts
-  if (type === "message.part" && sid && ev.part) {
-    const msgId = ev.messageId ?? ev.message_id ?? "_stream";
-    if (!streaming[sid]) streaming[sid] = {};
-    if (ev.part.type === "text") {
-      streaming[sid][msgId] = (streaming[sid][msgId] ?? "") + (ev.part.text ?? "");
+  const type = ev.type ?? "";
+  const props = ev.properties ?? {};
+  // --- Session events ---
+  if (type === "session.created" || type === "session.updated") {
+    const info = props.info;
+    if (info) {
+      const idx = sessions.findIndex((s) => s.id === info.id);
+      if (idx >= 0) sessions[idx] = info;
+      else if (type === "session.created") sessions.unshift(info);
+      renderSessionList();
+      if (info.id === currentId) renderChatTitle();
     }
-    if (sid === currentId) renderMessages();
   }
 
-  // Done signal
-  if (type === "assistant.done" || (type === "message.updated" && ev.message?.status === "done")) {
+  if (type === "session.status") {
+    const sid = props.sessionID;
+    const status = props.status;
+    if (sid && status) {
+      // status has fields like: generating, agent, modelID, etc.
+      if (status.generating !== undefined) {
+        generating[sid] = status.generating;
+        if (sid === currentId) {
+          if (!status.generating) setSending(false);
+          renderAbortBtn();
+        }
+      }
+    }
+  }
+
+  if (type === "session.error") {
+    const sid = props.sessionID;
     if (sid) {
       generating[sid] = false;
-      if (streaming[sid]) delete streaming[sid];
+      if (sid === currentId) {
+        setSending(false);
+        renderAbortBtn();
+      }
     }
-    if (sid === currentId) {
-      setSending(false);
-      renderAbortBtn();
-      // Refresh messages to get final content
-      fetchMessages(currentId).then(() => renderMessages());
+  }
+
+  // --- Message events ---
+  if (type === "message.updated") {
+    const info = props.info;
+    if (!info) return;
+    const sid = info.sessionID;
+    if (!sid || !messages[sid]) return;
+    const list = messages[sid];
+    // Remove optimistic messages when real user message arrives
+    if (info.role === "user") {
+      const optIdx = list.findIndex((m) => m.info.id.startsWith("opt-"));
+      if (optIdx >= 0) list.splice(optIdx, 1);
     }
+    const idx = list.findIndex((m) => m.info.id === info.id);
+    if (idx >= 0) {
+      list[idx].info = info;
+    } else {
+      list.push({ info, parts: [] });
+    }
+    // Assistant message with error — add as error message
+    if (info.role === "assistant" && info.error) {
+      const err = info.error;
+      const errMsg = err.data?.message ?? err.message ?? err.name ?? "Unknown error";
+      const errId = `err-${info.id}`;
+      if (!list.find((m) => m.info.id === errId)) {
+        list.push({
+          info: { id: errId, role: "error", sessionID: sid },
+          parts: [{ type: "text", text: errMsg }],
+        });
+      }
+    }
+    if (sid === currentId) renderMessages();
+  }
+
+  // Part created or updated — upsert into the message's parts array
+  if (type === "message.part.updated") {
+    const part = props.part;
+    if (!part) return;
+    const sid = part.sessionID;
+    const msgId = part.messageID;
+    if (!sid || !messages[sid]) return;
+    const msg = messages[sid].find((m) => m.info.id === msgId);
+    if (!msg) return;
+    const idx = msg.parts.findIndex((p) => p.id === part.id);
+    if (idx >= 0) msg.parts[idx] = part;
+    else msg.parts.push(part);
+    if (sid === currentId) renderMessages();
+  }
+
+  // Streaming text delta — append to the part's text field
+  if (type === "message.part.delta") {
+    const { sessionID, messageID, partID, field, delta } = props;
+    if (!sessionID || sessionID !== currentId) return;
+    if (!messages[sessionID]) return;
+    const msg = messages[sessionID].find((m) => m.info.id === messageID);
+    if (msg) {
+      const part = msg.parts.find((p) => p.id === partID);
+      if (part && field === "text") {
+        part.text = (part.text ?? "") + delta;
+      }
+    }
+    // Also track in deltas for cursor rendering
+    if (!deltas[sessionID]) deltas[sessionID] = {};
+    deltas[sessionID][partID] = true;
+    renderMessages();
+    // Clear delta flag after render so cursor disappears when streaming stops
+    requestAnimationFrame(() => {
+      if (deltas[sessionID]) delete deltas[sessionID][partID];
+    });
   }
 }
 
@@ -307,29 +528,15 @@ function renderMessages() {
   if (!currentId) return;
   const container = document.getElementById("messages");
   const msgs = messages[currentId] ?? [];
-  const stream = streaming[currentId] ?? {};
+  const activeDelta = deltas[currentId] ?? {};
   const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
 
   let html = "";
-  const renderedMsgIds = new Set();
-
   for (const msg of msgs) {
-    const streamText = stream[msg.id];
-    const rendered = renderMsg(msg, streamText);
-    if (rendered) {
-      html += rendered;
-      renderedMsgIds.add(msg.id);
-    }
+    html += renderMsg(msg, activeDelta);
   }
 
-  // Orphan streaming parts (msg not yet in list)
-  for (const [msgId, text] of Object.entries(stream)) {
-    if (!renderedMsgIds.has(msgId) && text) {
-      html += `<div class="msg assistant"><div class="msg-role">assistant</div>${esc(text)}<span class="cursor"></span></div>`;
-    }
-  }
-
-  if (!html && msgs.length === 0) {
+  if (!html) {
     html =
       '<div style="color:var(--dim);font-size:0.875rem;text-align:center;padding:3rem">Session started — send a message to begin</div>';
   }
@@ -338,37 +545,71 @@ function renderMessages() {
   if (atBottom) container.scrollTop = container.scrollHeight;
 }
 
-function renderMsg(msg, streamText) {
-  const role = msg.role ?? "assistant";
-  const parts = msg.parts ?? msg.content ?? [];
-  let text = "";
+function renderMsg(msg, activeDelta) {
+  const info = msg.info;
+  const parts = msg.parts ?? [];
+  const role = info.role ?? "assistant";
 
-  if (typeof parts === "string") {
-    text = parts;
-  } else if (Array.isArray(parts)) {
-    for (const p of parts) {
-      if (p.type === "text") text += p.text ?? "";
-      else if (p.type === "tool-invocation" || p.type === "tool-use") {
-        const name = p.toolName ?? p.name ?? "tool";
-        const input = JSON.stringify(p.input ?? p.args ?? {});
-        text += `[${name}(${input.length > 100 ? `${input.slice(0, 100)}…` : input})]`;
-      } else if (p.type === "tool-result") {
-        const content = p.content;
-        const preview = typeof content === "string" ? content : JSON.stringify(content);
-        text += `[result: ${preview.length > 120 ? `${preview.slice(0, 120)}…` : preview}]`;
-      }
-    }
+  if (role === "user") {
+    const textParts = parts.filter((p) => p.type === "text");
+    const text = textParts.map((p) => p.text ?? "").join("");
+    if (!text) return "";
+    return `<div class="msg user"><div class="msg-role">user</div>${esc(text)}</div>`;
   }
 
-  // Append any in-progress streaming text for this message
-  if (streamText && !text.endsWith(streamText)) text += streamText;
-  const hasCursor = !!streamText;
+  if (role === "error") {
+    const text = parts.map((p) => p.text ?? "").join("");
+    return `<div class="msg error"><div class="msg-role">error</div>${esc(text)}</div>`;
+  }
 
-  if (!text && !hasCursor) return "";
+  // Assistant message — render each part
+  let partHtml = "";
+  for (const p of parts) {
+    const isStreaming = activeDelta[p.id];
+    const cursor = isStreaming ? '<span class="cursor"></span>' : "";
 
-  const cls = role === "user" ? "user" : role === "tool" ? "tool" : "assistant";
-  const cursor = hasCursor ? '<span class="cursor"></span>' : "";
-  return `<div class="msg ${cls}"><div class="msg-role">${esc(role)}</div>${esc(text)}${cursor}</div>`;
+    if (p.type === "text") {
+      partHtml += `<div class="msg-part text">${esc(p.text ?? "")}${cursor}</div>`;
+    } else if (p.type === "reasoning") {
+      partHtml += `<div class="msg-part reasoning">${esc(p.text ?? "")}${cursor}</div>`;
+    } else if (p.type === "tool") {
+      partHtml += renderToolPart(p);
+    } else if (p.type === "step-finish") {
+      const tokens = p.tokens;
+      if (tokens) {
+        const inp = tokens.input ?? 0;
+        const out = tokens.output ?? 0;
+        const cached = tokens.cache?.read ?? 0;
+        partHtml += `<div class="msg-part step-finish">${inp + out} tokens (${inp} in, ${out} out${cached ? `, ${cached} cached` : ""})</div>`;
+      }
+    }
+    // step-start, snapshot, patch, compaction, agent — skip (internal)
+  }
+
+  if (!partHtml) return "";
+  return `<div class="msg assistant"><div class="msg-role">assistant</div>${partHtml}</div>`;
+}
+
+function renderToolPart(p) {
+  const tool = p.tool ?? "tool";
+  const state = p.state;
+  if (!state) return "";
+
+  const status = state.status;
+  const title = state.title ?? tool;
+
+  if (status === "pending" || status === "running") {
+    return `<div class="msg-part tool running">${esc(title)} <span class="cursor"></span></div>`;
+  }
+  if (status === "completed") {
+    const output = state.output ?? "";
+    const preview = output.length > 200 ? output.slice(0, 200) + "…" : output;
+    return `<div class="msg-part tool completed"><div class="tool-title">${esc(title)}</div><div class="tool-output">${esc(preview)}</div></div>`;
+  }
+  if (status === "error") {
+    return `<div class="msg-part tool errored"><div class="tool-title">${esc(title)}</div><div class="tool-error">${esc(state.error ?? "error")}</div></div>`;
+  }
+  return "";
 }
 
 // --- UI helpers ---
@@ -395,36 +636,23 @@ function autoResize(el) {
   el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
 }
 
-function toggleNewForm() {
-  const f = document.getElementById("newForm");
-  f.classList.toggle("visible");
-  if (f.classList.contains("visible")) document.getElementById("dirInput").focus();
-  document.getElementById("newBtn").classList.toggle("active", f.classList.contains("visible"));
-}
-
-function closeNewForm() {
-  document.getElementById("newForm").classList.remove("visible");
-  document.getElementById("newBtn").classList.remove("active");
-  document.getElementById("dirInput").value = "";
-}
-
 function closeSidebar() {
   document.getElementById("sidebar").classList.remove("open");
   document.getElementById("overlay").classList.remove("visible");
 }
 
 // --- Wire up ---
-document.getElementById("newBtn").onclick = toggleNewForm;
-document.getElementById("createBtn").onclick = createSession;
+document.getElementById("newBtn").onclick = openNewPanel;
+document.getElementById("newPanelClose").onclick = closeNewPanel;
+document.getElementById("reposBtn").onclick = openReposPanel;
+document.getElementById("reposPanelClose").onclick = closeReposPanel;
 document.getElementById("sendBtn").onclick = sendPrompt;
 document.getElementById("abortBtn").onclick = abortSession;
 document.getElementById("menuBtn").onclick = () => {
   document.getElementById("sidebar").classList.toggle("open");
   document.getElementById("overlay").classList.toggle("visible");
 };
-document.getElementById("dirInput").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") createSession();
-});
+document.getElementById("repoSearch").addEventListener("input", renderRepoPicker);
 document.getElementById("prompt").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
@@ -438,6 +666,9 @@ document.getElementById("prompt").addEventListener("input", function () {
 // Expose for inline onclick handlers
 window.selectSession = selectSession;
 window.deleteSession = deleteSession;
+window.startNewSession = startNewSession;
+window.deleteRepo = deleteRepo;
+window.deleteWorktree = deleteWorktree;
 
 // --- Init ---
 checkHealth();

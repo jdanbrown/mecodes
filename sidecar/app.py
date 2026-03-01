@@ -9,10 +9,11 @@ import os
 import shutil
 import subprocess
 import time
+import traceback
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
 
@@ -23,11 +24,14 @@ class _LogFilterForUvicornAccess(logging.Filter):
         return '"GET /auth/check ' not in record.getMessage()
 
 
+logging.basicConfig(level=logging.INFO)
 logging.getLogger("uvicorn.access").addFilter(_LogFilterForUvicornAccess())
 
+logger = logging.getLogger(__name__)
+
 PROJECTS_DIR = os.environ.get("DANCODES_PROJECTS_DIR", "/vol/projects")
-GITHUB_USER = os.environ.get("GITHUB_USER", "")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_USER = os.environ["GITHUB_USER"]
+GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 
 AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
 AUTH_SECRET = os.environ.get("AUTH_SECRET", "dancodes-dev-secret")
@@ -40,6 +44,27 @@ COOKIE_SECURE = os.environ.get("FLY_APP_NAME", "") != ""
 app = FastAPI(
     title="dancodes sidecar", docs_url="/admin/docs", openapi_url="/admin/openapi.json"
 )
+
+
+@app.exception_handler(HTTPException)
+async def _log_http_errors(request: Request, exc: HTTPException):  # pyright: ignore[reportUnusedFunction]
+    if exc.status_code >= 500:
+        logger.error(
+            "%s %s -> %s: %s",
+            request.method,
+            request.url.path,
+            exc.status_code,
+            exc.detail,
+        )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(Exception)
+async def _log_unhandled_errors(request: Request, exc: Exception):  # pyright: ignore[reportUnusedFunction]
+    logger.error(
+        "%s %s -> 500:\n%s", request.method, request.url.path, traceback.format_exc()
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 # --- Auth endpoints ---
@@ -149,6 +174,49 @@ class WorktreeRequest(BaseModel):
 
 
 # --- Repo endpoints ---
+
+
+@app.get("/admin/repos/github")
+async def list_github_repos() -> dict[str, list[dict[str, object]]]:
+    """List repos the authenticated GitHub user has access to (owner + collaborator)."""
+    repos: list[dict[str, object]] = []
+    url: str | None = "https://api.github.com/user/repos?per_page=100&sort=pushed"
+    async with httpx.AsyncClient() as client:
+        while url:
+            resp = await client.get(
+                url,
+                headers={
+                    # "token" prefix works for both classic and fine-grained PATs
+                    "Authorization": f"token {GITHUB_TOKEN}",
+                    "Accept": "application/vnd.github+json",
+                },
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"GitHub API returned {resp.status_code}: {resp.text[:200]}",
+                )
+            for r in resp.json():
+                repos.append(
+                    {
+                        "full_name": r["full_name"],
+                        "description": r.get("description") or "",
+                        "private": r["private"],
+                        "default_branch": r.get("default_branch", "main"),
+                    }
+                )
+            url = _next_link(resp.headers.get("link", ""))
+    return {"repos": repos}
+
+
+def _next_link(link_header: str) -> str | None:
+    """Parse GitHub Link header for rel=next URL."""
+    for part in link_header.split(","):
+        if 'rel="next"' in part:
+            url = part.split(";")[0].strip().strip("<>")
+            return url
+    return None
 
 
 @app.post("/admin/repos/clone")
@@ -332,9 +400,7 @@ def _worktree_dir(repo: str, session_id: str) -> str:
 
 
 def _clone_url(repo: str) -> str:
-    if GITHUB_TOKEN:
-        return f"https://{GITHUB_USER}:{GITHUB_TOKEN}@github.com/{repo}.git"
-    return f"https://github.com/{repo}.git"
+    return f"https://{GITHUB_USER}:{GITHUB_TOKEN}@github.com/{repo}.git"
 
 
 def _run(cmd: list[str], cwd: str | None = None) -> subprocess.CompletedProcess[str]:

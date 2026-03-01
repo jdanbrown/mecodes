@@ -20,7 +20,9 @@ fi
 show_cmd docker run \
     --rm \
     -p 8080:8080 \
-    -e AUTH_PASSWORD=dev \
+    -e AUTH_PASSWORD='dev' \
+    -e GITHUB_USER="$GITHUB_USER" \
+    -e GITHUB_TOKEN="$GITHUB_TOKEN" \
     -v /tmp:/tmp \
     -v "$PWD":"$PWD":ro \
     -w "$PWD" \

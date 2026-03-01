@@ -146,17 +146,141 @@ body {
   background: var(--bg);
 }
 
-/* New session form */
-.new-session-form {
-  padding: 0.875rem 1rem;
-  border-top: 1px solid var(--border);
+/* Slide-up panels (new session + repos management) */
+.new-session-panel,
+.repos-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  background: var(--bg2);
   display: none;
   flex-direction: column;
-  gap: 0.5rem;
+  z-index: 10;
 }
-.new-session-form.visible {
+.new-session-panel.visible,
+.repos-panel.visible {
   display: flex;
 }
+.panel-header {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.panel-header span {
+  flex: 1;
+}
+.panel-close {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.25rem 0.5rem;
+}
+.panel-close:hover {
+  color: var(--text);
+}
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Repo search */
+.repo-search-wrap {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Repo picker list */
+.repo-list {
+  overflow-y: auto;
+}
+.repo-item {
+  padding: 0.6rem 0.875rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.repo-item:hover {
+  background: var(--bg3);
+}
+.repo-item-name {
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.repo-item-desc {
+  font-size: 0.72rem;
+  color: var(--dim);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repo-badge {
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 500;
+}
+.repo-badge.cloned {
+  background: var(--green);
+  color: #000;
+}
+.repo-badge.private {
+  background: var(--orange);
+  color: #000;
+}
+
+/* Repos management panel */
+.mgmt-repo {
+  border-bottom: 1px solid var(--border);
+}
+.mgmt-repo-header {
+  padding: 0.625rem 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg3);
+}
+.mgmt-repo-name {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.mgmt-wt-list {
+  padding-left: 0.875rem;
+}
+.mgmt-wt-item {
+  padding: 0.4rem 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.mgmt-wt-session {
+  flex: 1;
+  font-size: 0.72rem;
+  color: var(--dim);
+  font-family: monospace;
+}
+.mgmt-wt-empty {
+  padding: 0.4rem 0.875rem;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+.session-del.visible-always {
+  opacity: 1;
+}
+
 .form-label {
   font-size: 0.75rem;
   color: var(--dim);
@@ -253,14 +377,63 @@ body {
   align-self: flex-start;
   border-bottom-left-radius: 3px;
 }
-.msg.tool {
-  background: var(--bg3);
-  align-self: flex-start;
+.msg.error {
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--red);
+  color: var(--red);
+  align-self: stretch;
+  max-width: 100%;
+  font-size: 0.8rem;
+}
+.msg.error .msg-role {
+  color: var(--red);
+  opacity: 0.7;
+}
+/* Assistant message part types */
+.msg-part {
+  margin-top: 0.4rem;
+}
+.msg-part:first-child {
+  margin-top: 0;
+}
+.msg-part.reasoning {
   color: var(--dim);
+  font-style: italic;
+  font-size: 0.8rem;
+  border-left: 2px solid var(--border);
+  padding-left: 0.5rem;
+}
+.msg-part.tool {
   font-size: 0.78rem;
-  font-family: monospace;
+  background: var(--bg3);
   border-radius: 6px;
-  max-width: 90%;
+  padding: 0.4rem 0.6rem;
+}
+.msg-part.tool.running {
+  color: var(--blue);
+}
+.msg-part.tool.errored .tool-error {
+  color: var(--red);
+}
+.tool-title {
+  font-weight: 500;
+  margin-bottom: 0.2rem;
+}
+.tool-output {
+  color: var(--dim);
+  font-family: monospace;
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow: hidden;
+}
+.msg-part.step-finish {
+  font-size: 0.68rem;
+  color: var(--dim);
+  border-top: 1px solid var(--border);
+  padding-top: 0.3rem;
+  margin-top: 0.5rem;
 }
 .msg-role {
   font-size: 0.68rem;

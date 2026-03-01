@@ -22,15 +22,34 @@
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <h1>dancodes</h1>
+      <button class="btn-sm" id="reposBtn">Repos</button>
       <button class="btn-sm" id="newBtn">+ New</button>
     </div>
     <div class="session-list" id="sessionList">
       <div class="session-empty">Loading…</div>
     </div>
-    <div class="new-session-form" id="newForm">
-      <div class="form-label">Working directory (optional)</div>
-      <input class="form-input" id="dirInput" placeholder="/vol/projects/…" autocomplete="off" spellcheck="false">
-      <button class="btn" id="createBtn">Create Session</button>
+    <div class="new-session-panel" id="newPanel">
+      <div class="panel-header">
+        <span>New Session</span>
+        <button class="panel-close" id="newPanelClose">✕</button>
+      </div>
+      <div class="panel-body" id="newPanelBody">
+        <div class="repo-search-wrap">
+          <input class="form-input" id="repoSearch" placeholder="Search repos…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="repo-list" id="repoList">
+          <div class="session-empty">Loading repos…</div>
+        </div>
+      </div>
+    </div>
+    <div class="repos-panel" id="reposPanel">
+      <div class="panel-header">
+        <span>Repos & Worktrees</span>
+        <button class="panel-close" id="reposPanelClose">✕</button>
+      </div>
+      <div class="panel-body" id="reposPanelBody">
+        <div class="session-empty">Loading…</div>
+      </div>
     </div>
   </div>
 

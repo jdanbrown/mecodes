@@ -19,7 +19,10 @@ echo_black_stderr "Start: run"
 APP_DIR='/opt/dancodes'
 
 # Ensure volume dirs exist
-mkdir -p /vol/projects /vol/opencode-state
+mkdir -p /vol/projects/worktrees /vol/opencode-state
+
+# Set HOME to worktrees dir so opencode's directory picker starts there
+export HOME=/vol/projects/worktrees
 
 # Write build version for the frontend to display
 GIT_SHA="$(cat "$APP_DIR/VERSION" 2>/dev/null || echo 'dev')"
@@ -27,7 +30,7 @@ GIT_TIME="$(cat "$APP_DIR/VERSION_TIME" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%
 echo "{\"sha\":\"${GIT_SHA}\",\"time\":\"${GIT_TIME}\"}" > "$APP_DIR/frontend/version.json"
 
 echo_black_stderr "Starting opencode (bg)"
-show_cmd opencode serve --hostname 0.0.0.0 --port 4096 &
+show_cmd opencode serve --hostname 0.0.0.0 --port 4096 --print-logs --log-level WARN &
 OPENCODE_PID=$!
 
 echo_black_stderr "Starting sidecar (bg)"
