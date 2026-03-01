@@ -11,6 +11,7 @@
 - 2026-02-28 32452fe
 
 ## Memory log
+- [2026-03-01] `session.status` event uses `{ type: "busy" | "idle" }`, not `{ generating: true/false }`
 - [2026-03-01] OpenCode SSE event format (v2)
   - All events are unnamed SSE messages (`onmessage`), no `event:` field — don't use `addEventListener`
   - Format: `{ type: "event.type", properties: { ... } }`

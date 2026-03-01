@@ -488,18 +488,97 @@ body {
 
 /* Input area */
 .input-area {
-  padding: 0.875rem 1rem;
+  padding: 0.5rem 1rem 0.875rem;
   border-top: 1px solid var(--border);
   display: none;
-  gap: 0.5rem;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 .input-area.visible {
   display: flex;
 }
+.prompt-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
 .prompt-wrap {
   flex: 1;
   position: relative;
+}
+
+/* Model picker */
+.model-bar {
+  position: relative;
+}
+.model-btn {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+.model-btn:hover {
+  color: var(--text);
+  background: var(--bg3);
+}
+.model-panel {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  min-width: 260px;
+  max-height: 50vh;
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+  margin-bottom: 0.25rem;
+}
+.model-panel.visible {
+  display: block;
+}
+.model-provider {
+  padding: 0.4rem 0.75rem 0.2rem;
+  font-size: 0.68rem;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  background: var(--bg3);
+  position: sticky;
+  top: 0;
+}
+.model-item {
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  border-bottom: 1px solid var(--border);
+}
+.model-item:last-child {
+  border-bottom: none;
+}
+.model-item:hover {
+  background: var(--bg3);
+}
+.model-item.active {
+  color: var(--blue);
+  background: rgba(88, 166, 255, 0.08);
+}
+.model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msg-model {
+  font-weight: 400;
+  opacity: 0.6;
+  margin-left: 0.3rem;
 }
 textarea {
   width: 100%;

@@ -68,10 +68,18 @@
     </div>
 
     <div class="input-area" id="inputArea">
-      <div class="prompt-wrap">
-        <textarea id="prompt" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+      <div class="model-bar">
+        <button class="model-btn" id="modelBtn" title="Select model">Model…</button>
+        <div class="model-panel" id="modelPanel">
+          <div class="model-list" id="modelList"></div>
+        </div>
       </div>
-      <button class="btn" id="sendBtn">Send</button>
+      <div class="prompt-row">
+        <div class="prompt-wrap">
+          <textarea id="prompt" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+        </div>
+        <button class="btn" id="sendBtn">Send</button>
+      </div>
     </div>
   </div>
 </div>

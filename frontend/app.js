@@ -12,6 +12,100 @@ let githubRepos = []; // cached from /admin/repos/github
 let clonedRepos = []; // cached from /admin/repos
 let allWorktrees = []; // cached from /admin/worktrees
 
+// Model picker state
+// { providerID, modelID, name } or null (use server default)
+let selectedModel = null;
+// [{ id, name, models: [{ id, providerID, name, ... }] }]
+let providers = [];
+let connectedProviders = []; // provider IDs that are connected
+
+// --- Model picker ---
+async function loadProviders() {
+  try {
+    const data = await get("/provider");
+    const all = data?.all ?? [];
+    connectedProviders = data?.connected ?? [];
+    const defaults = data?.default ?? {};
+
+    // Flatten: only show connected providers, extract models into arrays
+    providers = all
+      .filter((p) => connectedProviders.includes(p.id))
+      .map((p) => {
+        const models = Object.values(p.models ?? {}).sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));
+        return { id: p.id, name: p.name ?? p.id, models };
+      })
+      .filter((p) => p.models.length > 0);
+
+    // Auto-select: use the first connected provider's default model
+    if (!selectedModel && providers.length > 0) {
+      for (const p of providers) {
+        const defModelId = defaults[p.id];
+        if (defModelId) {
+          const m = p.models.find((m) => m.id === defModelId);
+          if (m) {
+            selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
+            break;
+          }
+        }
+      }
+      // Fallback: first model of first provider
+      if (!selectedModel) {
+        const p = providers[0];
+        const m = p.models[0];
+        selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
+      }
+    }
+    renderModelBtn();
+  } catch (e) {
+    console.error("loadProviders:", e);
+  }
+}
+
+function renderModelBtn() {
+  const btn = document.getElementById("modelBtn");
+  if (!btn) return;
+  const label = selectedModel ? selectedModel.name : "Model…";
+  btn.textContent = label;
+  btn.title = selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : "Select model";
+}
+
+function openModelPicker() {
+  const panel = document.getElementById("modelPanel");
+  panel.classList.toggle("visible");
+  if (panel.classList.contains("visible")) renderModelPicker();
+}
+
+function closeModelPicker() {
+  document.getElementById("modelPanel").classList.remove("visible");
+}
+
+function renderModelPicker() {
+  const container = document.getElementById("modelList");
+  if (!providers.length) {
+    container.innerHTML = '<div class="session-empty">No providers connected</div>';
+    return;
+  }
+
+  let html = "";
+  for (const p of providers) {
+    html += `<div class="model-provider">${esc(p.name)}</div>`;
+    for (const m of p.models) {
+      const active = selectedModel?.providerID === p.id && selectedModel?.modelID === m.id ? " active" : "";
+      const name = m.name ?? m.id;
+      html += `<div class="model-item${active}" onclick="pickModel('${esc(p.id)}', '${esc(m.id)}', '${esc(name)}')">
+        <span class="model-name">${esc(name)}</span>
+      </div>`;
+    }
+  }
+  container.innerHTML = html;
+}
+
+function pickModel(providerID, modelID, name) {
+  selectedModel = { providerID, modelID, name };
+  renderModelBtn();
+  closeModelPicker();
+}
+
 // --- API ---
 async function api(method, path, body) {
   const opts = { method, headers: {} };
@@ -119,9 +213,11 @@ async function sendPrompt() {
   renderMessages();
 
   try {
-    await post(`/session/${currentId}/prompt_async`, {
-      parts: [{ type: "text", text }],
-    });
+    const body = { parts: [{ type: "text", text }] };
+    if (selectedModel) {
+      body.model = { providerID: selectedModel.providerID, modelID: selectedModel.modelID };
+    }
+    await post(`/session/${currentId}/prompt_async`, body);
     generating[currentId] = true;
     renderAbortBtn();
   } catch (e) {
@@ -356,6 +452,7 @@ function handleEvent(raw) {
 
   const type = ev.type ?? "";
   const props = ev.properties ?? {};
+  console.debug("SSE:", type, props);
   // --- Session events ---
   if (type === "session.created" || type === "session.updated") {
     const info = props.info;
@@ -370,15 +467,13 @@ function handleEvent(raw) {
 
   if (type === "session.status") {
     const sid = props.sessionID;
-    const status = props.status;
-    if (sid && status) {
-      // status has fields like: generating, agent, modelID, etc.
-      if (status.generating !== undefined) {
-        generating[sid] = status.generating;
-        if (sid === currentId) {
-          if (!status.generating) setSending(false);
-          renderAbortBtn();
-        }
+    const statusType = props.status?.type;
+    if (sid && statusType) {
+      const isGenerating = statusType !== "idle";
+      generating[sid] = isGenerating;
+      if (sid === currentId) {
+        if (!isGenerating) setSending(false);
+        renderAbortBtn();
       }
     }
   }
@@ -587,7 +682,8 @@ function renderMsg(msg, activeDelta) {
   }
 
   if (!partHtml) return "";
-  return `<div class="msg assistant"><div class="msg-role">assistant</div>${partHtml}</div>`;
+  const modelLabel = info.modelID ? `<span class="msg-model">${esc(info.modelID)}</span>` : "";
+  return `<div class="msg assistant"><div class="msg-role">assistant ${modelLabel}</div>${partHtml}</div>`;
 }
 
 function renderToolPart(p) {
@@ -603,7 +699,7 @@ function renderToolPart(p) {
   }
   if (status === "completed") {
     const output = state.output ?? "";
-    const preview = output.length > 200 ? output.slice(0, 200) + "…" : output;
+    const preview = output.length > 200 ? `${output.slice(0, 200)}…` : output;
     return `<div class="msg-part tool completed"><div class="tool-title">${esc(title)}</div><div class="tool-output">${esc(preview)}</div></div>`;
   }
   if (status === "error") {
@@ -648,6 +744,7 @@ document.getElementById("reposBtn").onclick = openReposPanel;
 document.getElementById("reposPanelClose").onclick = closeReposPanel;
 document.getElementById("sendBtn").onclick = sendPrompt;
 document.getElementById("abortBtn").onclick = abortSession;
+document.getElementById("modelBtn").onclick = openModelPicker;
 document.getElementById("menuBtn").onclick = () => {
   document.getElementById("sidebar").classList.toggle("open");
   document.getElementById("overlay").classList.toggle("visible");
@@ -663,16 +760,27 @@ document.getElementById("prompt").addEventListener("input", function () {
   autoResize(this);
 });
 
+// Close model picker when clicking outside
+document.addEventListener("click", (e) => {
+  const panel = document.getElementById("modelPanel");
+  const btn = document.getElementById("modelBtn");
+  if (panel.classList.contains("visible") && !panel.contains(e.target) && e.target !== btn) {
+    closeModelPicker();
+  }
+});
+
 // Expose for inline onclick handlers
 window.selectSession = selectSession;
 window.deleteSession = deleteSession;
 window.startNewSession = startNewSession;
 window.deleteRepo = deleteRepo;
 window.deleteWorktree = deleteWorktree;
+window.pickModel = pickModel;
 
 // --- Init ---
 checkHealth();
 loadSessions();
+loadProviders();
 connectSSE();
 setInterval(checkHealth, 30_000);
 
