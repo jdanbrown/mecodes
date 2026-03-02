@@ -272,6 +272,10 @@ def create_worktree(req: WorktreeRequest) -> dict[str, str]:
     )
     if result.returncode != 0:
         raise HTTPException(status_code=500, detail=result.stderr)
+    # Set upstream to origin/main so `git push` just works (the local branch name
+    # is only needed because git requires unique branches per worktree)
+    _run(["git", "config", f"branch.{branch_name}.remote", "origin"], cwd=dest)
+    _run(["git", "config", f"branch.{branch_name}.merge", "refs/heads/main"], cwd=dest)
     return {"status": "created", "path": dest}
 
 
