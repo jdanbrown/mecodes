@@ -1,4 +1,7 @@
 # Backlog (see AGENTS.md)
+- [2026-03-02] Mobile is totally broken since rewrite?
+- [2026-03-02] Add buttons to show git status/diff/log in chat session
+- [2026-03-02] Figure out how to connect from opencode cli — i think custom auth currently defeats it?
 - [2026-03-02] Fuse Stop button into Send button — don't need two buttons in two faraway places, just make them two states of the same button
 - [2026-03-02] Add opt+enter for newline in edit box — currently have shift+enter which we want to keep, but opt+enter sometimes gets used too and currently sends the msg
 - [2026-03-02] Fix dev/check in prod — currently missing a bunch of deps
