@@ -32,7 +32,7 @@ export HOME=/vol/projects/worktrees
 # Write build version for the frontend to display
 GIT_SHA="$(cat "$APP_DIR/VERSION" 2>/dev/null || echo 'dev')"
 GIT_TIME="$(cat "$APP_DIR/VERSION_TIME" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
-echo "{\"sha\":\"${GIT_SHA}\",\"time\":\"${GIT_TIME}\"}" > "$APP_DIR/frontend/version.json"
+echo "{\"sha\":\"${GIT_SHA}\",\"time\":\"${GIT_TIME}\"}" > "$APP_DIR/frontend/dist/version.json"
 
 echo_black_stderr "Starting opencode (bg) in $OPENCODE_CWD"
 (cd "$OPENCODE_CWD" && show_cmd opencode serve --hostname 0.0.0.0 --port 4096 --print-logs --log-level WARN) &

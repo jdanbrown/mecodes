@@ -1,4 +1,5 @@
 # Backlog (see AGENTS.md)
+- [2026-03-02] To make dev/check faster for llm, can we run it in dev/docker-shell instead of llmjail (bash tool)?
 - [2026-03-02] Three-dots menu in chat header: copy branch (with branch name inline), share session, rename session, show git stat/diff
 - [2026-03-02] Mode picker in input area (build/plan/etc)
 - [2026-03-02] Photo upload in input area

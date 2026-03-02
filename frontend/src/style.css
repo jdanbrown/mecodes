@@ -54,44 +54,39 @@ button {
   position: relative;
 }
 
-/* --- Top bar --- */
+/* --- Top bar ---
+ * All children are plain spans/divs (no <button>) to avoid UA style issues.
+ * Every direct child uses the same font-size so align-items:center works cleanly.
+ */
 .top-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.75rem;
+  gap: 0.75rem;
+  padding: 0 0.75rem;
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  font-size: 12px;
-  min-height: 40px;
+  height: 40px;
+  font-size: 13px;
 }
 .top-bar-btn {
-  background: none;
-  border: none;
   color: var(--dim);
   cursor: pointer;
-  padding: 0.2rem 0.4rem;
-  font-size: 16px;
+  font-size: 18px;
   flex-shrink: 0;
 }
 .top-bar-btn:hover {
   color: var(--text);
 }
-.top-bar-btn.hamburger {
-  font-size: 22px;
-  padding: 0.1rem 0.4rem;
-}
-.top-bar-btn.new-session {
-  font-size: 22px;
-  padding: 0.1rem 0.5rem;
-  margin-left: 0.4rem;
+.top-bar-btn.disabled {
+  opacity: 0.25;
+  cursor: default;
 }
 .top-bar-info {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   min-width: 0;
-  gap: 0;
 }
 .top-bar-session {
   font-size: 10px;
@@ -99,48 +94,27 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 160px;
-  line-height: 1.2;
+  margin-top: 2px;
 }
 .top-bar-spacer {
   flex: 1;
-}
-.top-bar-version {
-  color: var(--dim);
-  font-size: 10px;
-  flex-shrink: 0;
-}
-.top-bar-link {
-  color: var(--dim);
-  text-decoration: none;
-  font-size: 11px;
-  flex-shrink: 0;
-}
-.top-bar-link:hover {
-  color: var(--text);
 }
 
 /* Inline repo picker in top bar */
 .top-bar-repo-picker {
   position: relative;
 }
-.top-bar-repo-btn {
-  background: none;
-  border: none;
+.top-bar-repo-label {
   color: var(--text);
   font-weight: 600;
-  font-size: 13px;
   cursor: pointer;
-  padding: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 160px;
   display: block;
-  text-align: left;
-  line-height: 1.3;
 }
-.top-bar-repo-btn:hover {
+.top-bar-repo-label:hover {
   color: var(--blue);
 }
 .top-bar-repo-dropdown {
@@ -197,6 +171,30 @@ button {
   font-size: 12px;
   color: var(--dim);
   text-align: center;
+}
+.sidebar-footer {
+  margin-top: auto;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--dim);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+.sidebar-footer-link {
+  color: var(--dim);
+  text-decoration: none;
+}
+.sidebar-footer-link:hover {
+  color: var(--text);
+}
+.sidebar-footer-version {
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --- Session list --- */

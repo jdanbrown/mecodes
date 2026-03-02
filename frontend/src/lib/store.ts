@@ -1,17 +1,20 @@
 // Global app state as a simple React-friendly store.
 // Uses useSyncExternalStore for efficient subscriptions without Context re-render cascades.
 
+import { nanoid } from "nanoid";
 import { useSyncExternalStore } from "react";
 import { del, get, post } from "./api";
 import {
   loadFavorites,
   loadLastModel,
   loadLastRepo,
+  loadLastSession,
   loadSessionDirs,
   modelKey,
   saveFavorites,
   saveLastModel,
   saveLastRepo,
+  saveLastSession,
   saveSessionDirs,
 } from "./storage";
 import type {
@@ -61,6 +64,7 @@ interface AppState {
   // UI
   sidebarOpen: boolean;
   version: string | null;
+  opencodeVersion: string | null;
 }
 
 const state: AppState = {
@@ -80,6 +84,7 @@ const state: AppState = {
   sseStreams: {},
   sidebarOpen: false,
   version: null,
+  opencodeVersion: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -190,6 +195,7 @@ export async function loadSessions() {
 export async function selectSession(id: string) {
   state.currentSessionId = id;
   state.sidebarOpen = false;
+  saveLastSession(id);
   emit();
   if (!state.messages[id]) {
     await fetchMessages(id);
@@ -251,7 +257,7 @@ export async function abortSession() {
 export async function startNewSession(): Promise<string | null> {
   if (!state.currentRepo) return null;
   try {
-    const wtId = crypto.randomUUID().slice(0, 12);
+    const wtId = nanoid(12);
     const wt = (await post("/admin/worktrees", {
       repo: state.currentRepo.name,
       session_id: wtId,
@@ -420,6 +426,14 @@ export async function loadVersion() {
     const r = await fetch("/version.json");
     const v = (await r.json()) as { sha: string; time: string };
     state.version = `${v.sha} (${v.time})`;
+    emit();
+  } catch {
+    // ignore
+  }
+  try {
+    const r = await fetch("/global/health");
+    const v = (await r.json()) as { healthy: boolean; version: string };
+    state.opencodeVersion = v.version;
     emit();
   } catch {
     // ignore
@@ -609,24 +623,29 @@ export async function initApp() {
   loadVersion();
   loadProviders();
 
-  // Restore last repo
+  // Restore last repo — trust localStorage, don't gate on /admin/repos succeeding
   const savedRepo = loadLastRepo();
   if (savedRepo) {
+    state.currentRepo = savedRepo;
+    emit();
     try {
       const data = (await get("/admin/repos")) as { repos?: Repo[] };
       state.clonedRepos = data?.repos ?? [];
-      const found = state.clonedRepos.find((r) => r.name === savedRepo.name);
-      if (found) {
-        await selectRepo(found);
-        // Auto-select the most recent session
-        const sorted = sortedSessions();
-        if (sorted.length > 0) {
-          await selectSession(sorted[0].id);
-        }
+    } catch (e) {
+      console.warn("initApp: failed to load repos:", e);
+    }
+    try {
+      await loadSessions();
+      const savedSession = loadLastSession();
+      const sorted = sortedSessions();
+      const resumeId = sorted.find((s) => s.id === savedSession)?.id ?? sorted[0]?.id;
+      if (resumeId) {
+        await selectSession(resumeId);
       }
     } catch (e) {
-      console.error("init:", e);
+      console.warn("initApp: failed to load sessions:", e);
     }
+    syncSSE();
   }
   emit();
 }

@@ -9,30 +9,27 @@ import {
 } from "../lib/store";
 
 export function TopBar() {
-  const { version, sidebarOpen, currentRepo, sessions, currentSessionId } = useStore();
+  const { sidebarOpen, currentRepo, sessions, currentSessionId } = useStore();
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
   const sessionLabel = currentSession?.title || (currentSessionId ? currentSessionId.slice(0, 14) : null);
 
   return (
     <div className="top-bar">
-      <button className="top-bar-btn hamburger" onClick={() => setSidebarOpen(!sidebarOpen)} title="Toggle sidebar">
+      <span className="top-bar-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
         &#9776;
-      </button>
+      </span>
       <div className="top-bar-info">
         <RepoPickerInline />
         {sessionLabel && <div className="top-bar-session">{sessionLabel}</div>}
       </div>
       <span className="top-bar-spacer" />
-      {version && <span className="top-bar-version">{version}</span>}
-      <a className="top-bar-link" href="/foo" target="_blank" rel="noreferrer" title="Open opencode web UI">
-        opencode
-      </a>
-      {currentRepo && (
-        <button className="top-bar-btn new-session" onClick={() => startNewSession()} title="New session">
-          +
-        </button>
-      )}
+      <span
+        className={`top-bar-btn ${!currentRepo ? "disabled" : ""}`}
+        onClick={() => currentRepo && startNewSession()}
+      >
+        +
+      </span>
     </div>
   );
 }
@@ -89,9 +86,9 @@ function RepoPickerInline() {
 
   return (
     <div className="top-bar-repo-picker" ref={pickerRef}>
-      <button className="top-bar-repo-btn" onClick={() => setOpen(!open)}>
+      <span className="top-bar-repo-label" onClick={() => setOpen(!open)}>
         {label}
-      </button>
+      </span>
       {open && (
         <div className="top-bar-repo-dropdown">
           <input

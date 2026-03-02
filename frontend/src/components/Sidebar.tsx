@@ -2,7 +2,7 @@ import { selectSession, sortedSessions, timeAgo, useStore } from "../lib/store";
 import type { Repo } from "../lib/types";
 
 export function Sidebar() {
-  const { sidebarOpen, currentRepo, sessions, currentSessionId, generating } = useStore();
+  const { sidebarOpen, version, opencodeVersion, currentRepo, sessions, currentSessionId, generating } = useStore();
 
   return (
     <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
@@ -12,6 +12,13 @@ export function Sidebar() {
         generating={generating}
         currentRepo={currentRepo}
       />
+      <div className="sidebar-footer">
+        {version && <span className="sidebar-footer-version">dancodes {version}</span>}
+        {opencodeVersion && <span className="sidebar-footer-version">opencode {opencodeVersion}</span>}
+        <a className="sidebar-footer-link" href="https://app.opencode.ai" target="_blank" rel="noreferrer">
+          app.opencode.ai &#8599;
+        </a>
+      </div>
     </div>
   );
 }

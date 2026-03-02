@@ -3,6 +3,7 @@
 import type { Repo, SelectedModel } from "./types";
 
 const LS_LAST_REPO = "dancodes:lastRepo";
+const LS_LAST_SESSION = "dancodes:lastSession";
 const LS_LAST_MODEL = "dancodes:lastModel";
 const LS_SESSION_DIRS = "dancodes:sessionDirs";
 const LS_FAVORITES = "dancodes:favoriteModels";
@@ -25,6 +26,13 @@ export function loadLastRepo(): Repo | null {
 }
 export function saveLastRepo(repo: Repo) {
   safeSet(LS_LAST_REPO, repo);
+}
+
+export function loadLastSession(): string | null {
+  return safeGet<string>(LS_LAST_SESSION);
+}
+export function saveLastSession(id: string) {
+  safeSet(LS_LAST_SESSION, id);
 }
 
 export function loadLastModel(): SelectedModel | null {

@@ -64,6 +64,7 @@ This project is built entirely from a phone, chatting with an llm
   - If it fails, fix the issues and re-run until it passes
   - Don't commit or push with failing checks — the human can't fix these from their phone
 - Before committing, read `BACKLOG.md` and remove any items completed by the commit (we don't keep completed backlog items)
+- Don't commit or push until the human says so, so that the current session's changes stay visible in git diff/status
 
 ## Searching docs and examples
 - Code apis change often — eagerly search with `context7` tool to avoid outdated knowledge
