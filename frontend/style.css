@@ -138,12 +138,9 @@ body {
     transform: rotate(360deg);
   }
 }
-.session-dir {
-  font-size: 0.72rem;
+.session-time {
+  font-size: 0.68rem;
   color: var(--dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   margin-top: 1px;
 }
 .session-del {
@@ -164,8 +161,50 @@ body {
   background: var(--bg);
 }
 
-/* Slide-up panels (new session + repos management) */
-.new-session-panel,
+/* Repo selector (top of sidebar, always visible) */
+.repo-selector {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.repo-selector-btn {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repo-selector-btn:hover {
+  border-color: var(--blue);
+}
+.repo-selector-picker {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0.75rem;
+  right: 0.75rem;
+  max-height: 60vh;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+  margin-top: 0.25rem;
+  flex-direction: column;
+}
+.repo-selector-picker.visible {
+  display: flex;
+}
+
+/* Slide-up panels (repos management) */
 .repos-panel {
   position: absolute;
   bottom: 0;
@@ -177,7 +216,6 @@ body {
   flex-direction: column;
   z-index: 10;
 }
-.new-session-panel.visible,
 .repos-panel.visible {
   display: flex;
 }

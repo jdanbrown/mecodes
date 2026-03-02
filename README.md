@@ -29,6 +29,23 @@ A single `opencode serve` process already handles:
 
 So the frontend can talk to the opencode API directly. No orchestrator/proxy needed.
 
+### How opencode directory scoping works
+Opencode's directory model is **per-request**, not per-session. Every request goes through middleware
+that resolves the directory from: `?directory=` query param → `x-opencode-directory` header → `process.cwd()`.
+This determines the Instance context (project, git worktree, tool CWD, etc.) for that request.
+
+Key implications for our multi-worktree design:
+- **Every API call to opencode must include `x-opencode-directory`** with the session's worktree path.
+  The directory is NOT stored on the session and recalled automatically — it's resolved fresh per request.
+- **SSE (`/event`) is scoped to one directory** — events are published on instance-scoped buses, so an SSE
+  connection for directory A only receives events for sessions in directory A. To juggle multiple concurrent
+  chats across different worktrees, the frontend must maintain **one SSE stream per worktree directory**.
+- **Session listing (`GET /session`) returns all sessions for the project** (identified by git root commit SHA).
+  All worktrees of the same repo share the same project, so sessions from any worktree are visible from any
+  other worktree of the same repo. The `directory` query param is an optional additional filter.
+- **Session creation (`POST /session`)** does NOT accept `directory` in the JSON body — the directory comes
+  entirely from the middleware (header/query param). Passing `{ directory: path }` in the body is silently ignored.
+
 ### Auth: cookie-based via Caddy forward_auth
 - Caddy uses `forward_auth` to check a session cookie on every request (except health check + auth endpoints)
 - Sidecar handles auth: login page (`GET /auth/login`), form submit (`POST /auth/login`), cookie check (`GET /auth/check`)
@@ -47,7 +64,7 @@ A small service for things opencode doesn't expose.
 
 ### Git management
 - GitHub username hardcoded in fly.toml, API token injected via secrets
-- **Clone cache**: bare-clone repo on first use, reuse across sessions
+- **Clone**: regular (non-bare) clone on first use — needed so opencode can use the repo dir to list sessions
 - **Worktree per session**: each chat gets a git worktree keyed by opencode session ID
 - On new chat: clone if needed → create worktree → tell opencode to work in that dir
 
@@ -107,6 +124,7 @@ Auto-generated OpenAPI docs at `/admin/docs`.
 - Mobile-friendly responsive web app
 - Talks to opencode REST + SSE API at `/` (same origin, no prefix)
 - Talks to sidecar API for git/resource management at `/admin/*`
+- **Concurrent chats**: fire off multiple chats, monitor progress from the sidebar (status, activity), dive into any chat to see details — all from one tab
 - Concurrency: multiple tabs/reconnects → broadcast pattern, last-write-wins on input
 
 ## Implementation notes

@@ -11,6 +11,17 @@
 - 2026-02-28 32452fe
 
 ## Memory log
+- [2026-03-01] `GET /session/status` returns `{ sessionID: { type: "idle"|"busy"|"retry" } }` for all sessions
+  - Scoped per-directory (like all opencode endpoints), so needs `x-opencode-directory` header
+  - Use this to get initial busy/idle state on page load — SSE only delivers future state changes, not current state
+- [2026-03-01] Opencode health endpoint is `/global/health`, NOT `/health`
+  - `/health` is not a real endpoint — it falls through to the catch-all proxy to `app.opencode.ai` (which redirects it to `/session/health`, which doesn't exist)
+  - `/global/health` is before the directory middleware, so it always works regardless of CWD
+- [2026-03-01] Opencode directory scoping is per-request, not per-session (see README "How opencode directory scoping works")
+  - `x-opencode-directory` header (or `?directory=` query param) must be on every API call, including SSE
+  - `POST /session` body `{ directory }` is silently ignored — directory comes from middleware only
+  - SSE is scoped per-directory — need one EventSource per worktree to get all events
+  - Session listing returns all sessions for the project (same repo = same project, keyed by root commit SHA)
 - [2026-03-01] `session.status` event uses `{ type: "busy" | "idle" }`, not `{ generating: true/false }`
 - [2026-03-01] OpenCode SSE event format (v2)
   - All events are unnamed SSE messages (`onmessage`), no `event:` field — don't use `addEventListener`
@@ -21,7 +32,7 @@
   - Errors come through two paths: `session.error` event AND `message.updated` with `info.error` on assistant message — dedup or pick one
 - [2026-03-01] OpenCode serve gotchas
   - `--print-logs` required to see logs on stderr (otherwise logs go to `~/.local/share/opencode/log/` only)
-  - Treats CWD as project root, tries git operations (snapshots) — fails with "No such file or directory" if CWD has no `.git` (e.g. `/opt/dancodes` where `.git` is in `.dockerignore`)
+  - Treats CWD as project root — we now start it in `/tmp/opencode-no-project` so any request missing `x-opencode-directory` fails loudly
   - `HOME` is used as starting dir for opencode web UI's "Open project" folder picker — set it to `/vol/projects/worktrees` so worktrees are discoverable
 - [2026-03-01] Frontend rendering pitfall
   - Don't DOM-append elements (e.g. error messages) into a container that gets rebuilt via `innerHTML =` on the next event — they get wiped. Store everything in state and render from state.

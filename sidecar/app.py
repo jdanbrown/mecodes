@@ -225,7 +225,7 @@ def clone_repo(req: CloneRequest) -> dict[str, str]:
     if os.path.exists(dest):
         return {"status": "exists", "path": dest}
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    result = _run(["git", "clone", "--bare", _clone_url(req.repo), dest])
+    result = _run(["git", "clone", _clone_url(req.repo), dest])
     if result.returncode != 0:
         raise HTTPException(status_code=500, detail=result.stderr)
     return {"status": "cloned", "path": dest}
@@ -241,13 +241,13 @@ def delete_repo(owner: str, name: str) -> dict[str, str]:
 
 
 @app.get("/admin/repos")
-def list_repos() -> dict[str, list[str]]:
+def list_repos() -> dict[str, list[dict[str, str]]]:
     repos_dir = os.path.join(PROJECTS_DIR, "repos")
     if not os.path.exists(repos_dir):
         return {"repos": []}
     entries = os.listdir(repos_dir)
     repos = [
-        e.replace("__", "/", 1)
+        {"name": e.replace("__", "/", 1), "path": os.path.join(repos_dir, e)}
         for e in entries
         if os.path.isdir(os.path.join(repos_dir, e))
     ]
@@ -259,8 +259,8 @@ def list_repos() -> dict[str, list[str]]:
 
 @app.post("/admin/worktrees")
 def create_worktree(req: WorktreeRequest) -> dict[str, str]:
-    bare = _repo_dir(req.repo)
-    if not os.path.exists(bare):
+    repo = _repo_dir(req.repo)
+    if not os.path.exists(repo):
         raise HTTPException(status_code=404, detail="repo not cloned — clone it first")
     dest = _worktree_dir(req.repo, req.session_id)
     if os.path.exists(dest):
@@ -268,7 +268,7 @@ def create_worktree(req: WorktreeRequest) -> dict[str, str]:
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     branch_name = f"dancodes/{req.session_id}"
     result = _run(
-        ["git", "worktree", "add", "-b", branch_name, dest, req.branch], cwd=bare
+        ["git", "worktree", "add", "-b", branch_name, dest, req.branch], cwd=repo
     )
     if result.returncode != 0:
         raise HTTPException(status_code=500, detail=result.stderr)
@@ -277,11 +277,11 @@ def create_worktree(req: WorktreeRequest) -> dict[str, str]:
 
 @app.delete("/admin/worktrees/{owner}/{name}/{session_id}")
 def delete_worktree(owner: str, name: str, session_id: str) -> dict[str, str]:
-    bare = _repo_dir(f"{owner}/{name}")
+    repo = _repo_dir(f"{owner}/{name}")
     dest = _worktree_dir(f"{owner}/{name}", session_id)
     if not os.path.exists(dest):
         raise HTTPException(status_code=404, detail="worktree not found")
-    _run(["git", "worktree", "remove", "--force", dest], cwd=bare)
+    _run(["git", "worktree", "remove", "--force", dest], cwd=repo)
     if os.path.exists(dest):
         shutil.rmtree(dest)
     return {"status": "deleted"}
@@ -364,9 +364,9 @@ def garbage_collect() -> dict[str, int]:
         return {"pruned": 0}
     pruned = 0
     for entry in os.listdir(repos_dir):
-        bare = os.path.join(repos_dir, entry)
-        if os.path.isdir(bare):
-            result = _run(["git", "worktree", "prune"], cwd=bare)
+        repo = os.path.join(repos_dir, entry)
+        if os.path.isdir(repo):
+            result = _run(["git", "worktree", "prune"], cwd=repo)
             if result.returncode == 0:
                 pruned += 1
     return {"pruned": pruned}

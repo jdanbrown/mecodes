@@ -25,23 +25,20 @@
       <button class="btn-sm" id="reposBtn">Repos</button>
       <button class="btn-sm" id="newBtn">+ New</button>
     </div>
+    <!-- Repo selector: always visible at top of sidebar -->
+    <div class="repo-selector" id="repoSelector">
+      <button class="repo-selector-btn" id="repoSelectorBtn" onclick="openRepoPicker()">Select a repo…</button>
+      <div class="repo-selector-picker" id="repoSelectorPicker">
+        <div class="picker-panel-search">
+          <input class="form-input" id="repoSelectorSearch" placeholder="Search repos…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="picker-panel-list" id="repoSelectorList"></div>
+      </div>
+    </div>
     <div class="session-list" id="sessionList">
-      <div class="session-empty">Loading…</div>
+      <div class="session-empty">Select a repo to see sessions</div>
     </div>
-    <div class="new-session-panel" id="newPanel">
-      <div class="panel-header">
-        <span>New Session</span>
-        <button class="panel-close" id="newPanelClose">✕</button>
-      </div>
-      <div class="panel-body" id="newPanelBody">
-        <div class="repo-search-wrap">
-          <input class="form-input" id="repoSearch" placeholder="Search repos…" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="repo-list" id="repoList">
-          <div class="session-empty">Loading repos…</div>
-        </div>
-      </div>
-    </div>
+    <!-- Repos & worktrees management panel (slides over sidebar) -->
     <div class="repos-panel" id="reposPanel">
       <div class="panel-header">
         <span>Repos & Worktrees</span>
@@ -63,21 +60,12 @@
     <div class="messages" id="messages">
       <div class="empty-state">
         <h2>dancodes</h2>
-        <p>Select a session or create a new one</p>
+        <p>Select a repo, then start a session</p>
       </div>
     </div>
 
     <div class="input-area" id="inputArea">
       <div class="picker-bar">
-        <div class="picker-bar-item">
-          <button class="picker-btn" id="repoBtn" title="Select repo for new sessions">Repo…</button>
-          <div class="picker-panel" id="repoPickerPanel">
-            <div class="picker-panel-search">
-              <input class="form-input" id="repoPickerSearch" placeholder="Search repos…" autocomplete="off" spellcheck="false">
-            </div>
-            <div class="picker-panel-list" id="repoPickerList"></div>
-          </div>
-        </div>
         <div class="picker-bar-item">
           <button class="picker-btn" id="modelBtn" title="Select model">Model…</button>
           <div class="picker-panel" id="modelPanel">

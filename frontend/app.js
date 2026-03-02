@@ -3,23 +3,32 @@ let sessions = [];
 let currentId = null;
 // sessionId -> [{ info: {id, role, sessionID, ...}, parts: [{type, ...}] }]
 const messages = {};
-// sessionId -> { partId -> accumulated delta text } (for streaming)
+// sessionId -> { partId -> true } (marks parts currently streaming)
 const deltas = {};
 const generating = {}; // sessionId -> bool
-let sse = null;
 
-let githubRepos = []; // cached from /admin/repos/github
-let clonedRepos = []; // cached from /admin/repos
-let allWorktrees = []; // cached from /admin/worktrees
+// Currently selected repo: { name: "owner/repo", path: "/vol/projects/repos/owner__repo" }
+let currentRepo = null;
+// [{ name, path }] from GET /admin/repos
+let clonedRepos = [];
+let githubRepos = []; // from GET /admin/repos/github
+let allWorktrees = []; // from GET /admin/worktrees
+
+// SSE: one EventSource per worktree directory, so we get events from all live sessions.
+// directory -> EventSource
+const sseStreams = {};
+
+// sessionId -> worktree directory path
+// Opencode sessions don't reliably include a directory field, so we track it
+// ourselves. Populated when creating sessions and persisted in localStorage.
+const sessionDirs = loadSessionDirs();
 
 // Model picker state
-// { providerID, modelID, name } or null (use server default)
-let selectedModel = null;
-// [{ id, name, models: [{ id, providerID, name, ... }] }]
-let providers = [];
-let connectedProviders = []; // provider IDs that are connected
+let selectedModel = null; // { providerID, modelID, name } or null
+let providers = []; // [{ id, name, models: [...] }]
+let connectedProviders = [];
 
-// Favorites + last model + last repo (localStorage-backed)
+// localStorage keys
 const LS_FAVORITES = "dancodes:favoriteModels";
 const LS_LAST_MODEL = "dancodes:lastModel";
 const LS_LAST_REPO = "dancodes:lastRepo";
@@ -31,26 +40,12 @@ function loadFavorites() {
     return [];
   }
 }
-
 function saveFavorites(favs) {
   localStorage.setItem(LS_FAVORITES, JSON.stringify(favs));
 }
-
 function modelKey(providerID, modelID) {
   return `${providerID}/${modelID}`;
 }
-
-function toggleFavorite(providerID, modelID, ev) {
-  ev.stopPropagation();
-  const key = modelKey(providerID, modelID);
-  const favs = loadFavorites();
-  const idx = favs.indexOf(key);
-  if (idx >= 0) favs.splice(idx, 1);
-  else favs.push(key);
-  saveFavorites(favs);
-  renderModelPicker();
-}
-
 function loadLastModel() {
   try {
     return JSON.parse(localStorage.getItem(LS_LAST_MODEL));
@@ -58,12 +53,22 @@ function loadLastModel() {
     return null;
   }
 }
-
 function saveLastModel(model) {
   localStorage.setItem(LS_LAST_MODEL, JSON.stringify(model));
 }
+const LS_SESSION_DIRS = "dancodes:sessionDirs";
+function loadSessionDirs() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_SESSION_DIRS)) || {};
+  } catch {
+    return {};
+  }
+}
+function saveSessionDirs() {
+  localStorage.setItem(LS_SESSION_DIRS, JSON.stringify(sessionDirs));
+}
 
-// { full_name, default_branch } or null
+// { name, path } or null
 function loadLastRepo() {
   try {
     return JSON.parse(localStorage.getItem(LS_LAST_REPO));
@@ -71,235 +76,28 @@ function loadLastRepo() {
     return null;
   }
 }
-
 function saveLastRepo(repo) {
   localStorage.setItem(LS_LAST_REPO, JSON.stringify(repo));
-  renderRepoBtn();
 }
 
-// --- Model picker ---
-async function loadProviders() {
-  try {
-    const data = await get("/provider");
-    const all = data?.all ?? [];
-    connectedProviders = data?.connected ?? [];
-    const defaults = data?.default ?? {};
+// ============================================================================
+// API
+// ============================================================================
 
-    // Flatten: only show connected providers, extract models into arrays
-    providers = all
-      .filter((p) => connectedProviders.includes(p.id))
-      .map((p) => {
-        const models = Object.values(p.models ?? {}).sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));
-        return { id: p.id, name: p.name ?? p.id, models };
-      })
-      .filter((p) => p.models.length > 0);
-
-    // Auto-select: restore last-used model from localStorage, else provider default
-    if (!selectedModel && providers.length > 0) {
-      const last = loadLastModel();
-      if (last) {
-        const p = providers.find((p) => p.id === last.providerID);
-        const m = p?.models.find((m) => m.id === last.modelID);
-        if (m) {
-          selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
-        }
-      }
-      // Fallback: first connected provider's default model
-      if (!selectedModel) {
-        for (const p of providers) {
-          const defModelId = defaults[p.id];
-          if (defModelId) {
-            const m = p.models.find((m) => m.id === defModelId);
-            if (m) {
-              selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
-              break;
-            }
-          }
-        }
-      }
-      // Fallback: first model of first provider
-      if (!selectedModel) {
-        const p = providers[0];
-        const m = p.models[0];
-        selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
-      }
-    }
-    renderModelBtn();
-  } catch (e) {
-    console.error("loadProviders:", e);
-  }
-}
-
-function renderModelBtn() {
-  const btn = document.getElementById("modelBtn");
-  if (!btn) return;
-  const label = selectedModel ? selectedModel.name : "Model…";
-  btn.textContent = label;
-  btn.title = selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : "Select model";
-}
-
-function openModelPicker() {
-  const panel = document.getElementById("modelPanel");
-  panel.classList.toggle("visible");
-  if (panel.classList.contains("visible")) {
-    const searchInput = document.getElementById("modelSearch");
-    if (searchInput) searchInput.value = "";
-    renderModelPicker();
-    if (searchInput) searchInput.focus();
-  }
-}
-
-function closeModelPicker() {
-  document.getElementById("modelPanel").classList.remove("visible");
-}
-
-function renderModelPicker() {
-  const container = document.getElementById("modelList");
-  if (!providers.length) {
-    container.innerHTML = '<div class="session-empty">No providers connected</div>';
-    return;
-  }
-
-  const searchInput = document.getElementById("modelSearch");
-  const query = (searchInput?.value || "").toLowerCase();
-  const favs = loadFavorites();
-
-  // Collect all models with provider info, filter by search
-  // Search matches against "providerID/modelID" so e.g. "openrouter haiku 4" works
-  const queryWords = query.split(/\s+/).filter(Boolean);
-  const allModels = [];
-  for (const p of providers) {
-    for (const m of p.models) {
-      const name = m.name ?? m.id;
-      const searchable = `${p.id}/${m.id}`.toLowerCase();
-      if (queryWords.length > 0 && !queryWords.every((w) => searchable.includes(w))) continue;
-      allModels.push({ provider: p, model: m, name, key: modelKey(p.id, m.id) });
-    }
-  }
-
-  const favoriteModels = allModels.filter((x) => favs.includes(x.key));
-  const restModels = allModels.filter((x) => !favs.includes(x.key));
-
-  let html = "";
-
-  function renderModelItem(providerID, m, name, isFav) {
-    const active = selectedModel?.providerID === providerID && selectedModel?.modelID === m.id ? " active" : "";
-    const starCls = isFav ? "model-star starred" : "model-star";
-    return `<div class="model-item${active}" onclick="pickModel('${esc(providerID)}', '${esc(m.id)}', '${esc(name)}')">
-      <button class="${starCls}" onclick="toggleFavorite('${esc(providerID)}', '${esc(m.id)}', event)" title="${isFav ? "Remove from favorites" : "Add to favorites"}">&#9733;</button>
-      <span class="model-name">${esc(name)}</span>
-    </div>`;
-  }
-
-  if (favoriteModels.length > 0) {
-    html += '<div class="model-provider">Favorites</div>';
-    for (const x of favoriteModels) {
-      html += renderModelItem(x.provider.id, x.model, x.name, true);
-    }
-  }
-
-  // Group rest by provider
-  const grouped = new Map();
-  for (const x of restModels) {
-    if (!grouped.has(x.provider.id)) grouped.set(x.provider.id, { provider: x.provider, models: [] });
-    grouped.get(x.provider.id).models.push(x);
-  }
-  for (const [, group] of grouped) {
-    html += `<div class="model-provider">${esc(group.provider.name)}</div>`;
-    for (const x of group.models) {
-      html += renderModelItem(group.provider.id, x.model, x.name, false);
-    }
-  }
-
-  if (!html) {
-    html = '<div class="session-empty">No models match</div>';
-  }
-
-  container.innerHTML = html;
-}
-
-function pickModel(providerID, modelID, name) {
-  selectedModel = { providerID, modelID, name };
-  saveLastModel(selectedModel);
-  renderModelBtn();
-  closeModelPicker();
-}
-
-// --- Repo picker (input area widget) ---
-function renderRepoBtn() {
-  const btn = document.getElementById("repoBtn");
-  if (!btn) return;
-  const last = loadLastRepo();
-  const label = last ? last.full_name.split("/").pop() : "Repo…";
-  btn.textContent = label;
-  btn.title = last ? last.full_name : "Select repo for new sessions";
-}
-
-function openRepoPicker() {
-  const panel = document.getElementById("repoPickerPanel");
-  panel.classList.toggle("visible");
-  if (panel.classList.contains("visible")) {
-    const searchInput = document.getElementById("repoPickerSearch");
-    if (searchInput) searchInput.value = "";
-    renderRepoPickerList();
-    if (searchInput) searchInput.focus();
-    // Load data in background, re-render when ready
-    loadRepoPickerData().then(renderRepoPickerList);
-  }
-}
-
-function closeRepoPicker() {
-  document.getElementById("repoPickerPanel").classList.remove("visible");
-}
-
-function renderRepoPickerList() {
-  const container = document.getElementById("repoPickerList");
-  if (!container) return;
-  const query = (document.getElementById("repoPickerSearch")?.value || "").toLowerCase();
-  const lastRepo = loadLastRepo();
-
-  let repos = githubRepos.map((r) => ({
-    ...r,
-    cloned: clonedRepos.includes(r.full_name),
-  }));
-
-  if (query) {
-    repos = repos.filter(
-      (r) => r.full_name.toLowerCase().includes(query) || (r.description || "").toLowerCase().includes(query),
-    );
-  }
-
-  if (!repos.length) {
-    const msg = githubRepos.length === 0 && !query ? "Loading…" : "No repos found";
-    container.innerHTML = `<div class="session-empty">${msg}</div>`;
-    return;
-  }
-
-  container.innerHTML = repos
-    .map((r) => {
-      const active = lastRepo?.full_name === r.full_name ? " active" : "";
-      const badge = r.cloned ? '<span class="repo-badge cloned">cloned</span>' : "";
-      return `<div class="repo-picker-item${active}" onclick="pickRepo('${esc(r.full_name)}', '${esc(r.default_branch)}')">
-      <span class="repo-picker-name">${esc(r.full_name)}</span> ${badge}
-    </div>`;
-    })
-    .join("");
-}
-
-function pickRepo(fullName, defaultBranch) {
-  saveLastRepo({ full_name: fullName, default_branch: defaultBranch });
-  closeRepoPicker();
-}
-
-// --- API ---
-async function api(method, path, body) {
+// All opencode API calls that operate on a session/project must include the
+// x-opencode-directory header. See README "How opencode directory scoping works".
+async function api(method, path, body, { directory } = {}) {
   const opts = { method, headers: {} };
+  if (directory) {
+    opts.headers["x-opencode-directory"] = directory;
+  }
   if (body !== undefined) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
   }
   const t0 = performance.now();
-  console.log(`API ${method} ${path}`);
+  const dirTag = directory ? ` [dir=${directory}]` : "";
+  console.log(`API ${method} ${path}${dirTag}`);
   let r;
   try {
     r = await fetch(path, opts);
@@ -321,14 +119,24 @@ async function api(method, path, body) {
 function ms(t0) {
   return `${Math.round(performance.now() - t0)}ms`;
 }
-const get = (p) => api("GET", p);
-const post = (p, b) => api("POST", p, b);
-const del = (p) => api("DELETE", p);
+const get = (p, opts) => api("GET", p, undefined, opts);
+const post = (p, b, opts) => api("POST", p, b, opts);
+const del = (p, opts) => api("DELETE", p, undefined, opts);
 
-// --- Health ---
+// Look up the worktree directory for a session (used as x-opencode-directory)
+function dirFor(sessionId) {
+  if (sessionDirs[sessionId]) return sessionDirs[sessionId];
+  const s = sessions.find((s) => s.id === sessionId);
+  return s?.directory;
+}
+
+// ============================================================================
+// Health
+// ============================================================================
+
 async function checkHealth() {
   for (const [url, dot] of [
-    ["/health", "dotOc"],
+    ["/global/health", "dotOc"],
     ["/admin/health", "dotSc"],
   ]) {
     try {
@@ -340,11 +148,167 @@ async function checkHealth() {
   }
 }
 
-// --- Sessions ---
-async function loadSessions() {
+// ============================================================================
+// Repo selector (sidebar top)
+// ============================================================================
+
+async function selectRepo(repo) {
+  currentRepo = repo;
+  saveLastRepo(repo);
+  renderRepoSelectorBtn();
+  closeRepoPicker();
+
+  // Load sessions for this repo using the repo checkout as the directory
+  sessions = [];
+  currentId = null;
+  renderSessionList();
+  renderMain();
+  await loadSessions();
+  syncSSE();
+}
+
+function renderRepoSelectorBtn() {
+  const btn = document.getElementById("repoSelectorBtn");
+  if (currentRepo) {
+    btn.textContent = currentRepo.name.split("/").pop();
+    btn.title = currentRepo.name;
+  } else {
+    btn.textContent = "Select a repo…";
+    btn.title = "";
+  }
+}
+
+function openRepoPicker() {
+  const picker = document.getElementById("repoSelectorPicker");
+  const isOpen = picker.classList.contains("visible");
+  if (isOpen) {
+    closeRepoPicker();
+    return;
+  }
+  picker.classList.add("visible");
+  const search = document.getElementById("repoSelectorSearch");
+  search.value = "";
+  search.focus();
+  renderRepoSelectorList();
+  // Fetch latest data in background
+  loadRepoPickerData().then(renderRepoSelectorList);
+}
+
+function closeRepoPicker() {
+  document.getElementById("repoSelectorPicker").classList.remove("visible");
+}
+
+async function loadRepoPickerData() {
   try {
-    const data = await get("/session");
-    sessions = Array.isArray(data) ? data : (data?.sessions ?? []);
+    const [ghData, clonedData] = await Promise.all([
+      get("/admin/repos/github").catch((e) => {
+        console.error("GitHub repos:", e);
+        return null;
+      }),
+      get("/admin/repos"),
+    ]);
+    githubRepos = ghData?.repos ?? [];
+    clonedRepos = clonedData?.repos ?? [];
+  } catch (e) {
+    console.error("loadRepoPickerData:", e);
+  }
+}
+
+function renderRepoSelectorList() {
+  const container = document.getElementById("repoSelectorList");
+  if (!container) return;
+  const query = (document.getElementById("repoSelectorSearch")?.value || "").toLowerCase();
+  const clonedNames = clonedRepos.map((r) => r.name);
+
+  let repos = githubRepos.map((r) => ({
+    ...r,
+    cloned: clonedNames.includes(r.full_name),
+  }));
+
+  if (query) {
+    repos = repos.filter(
+      (r) => r.full_name.toLowerCase().includes(query) || (r.description || "").toLowerCase().includes(query),
+    );
+  }
+
+  if (!repos.length) {
+    const msg = githubRepos.length === 0 && !query ? "Loading…" : "No repos found";
+    container.innerHTML = `<div class="session-empty">${msg}</div>`;
+    return;
+  }
+
+  container.innerHTML = repos
+    .map((r) => {
+      const active = currentRepo?.name === r.full_name ? " active" : "";
+      const badge = r.cloned ? '<span class="repo-badge cloned">cloned</span>' : "";
+      const priv = r.private ? '<span class="repo-badge private">private</span>' : "";
+      const shortName = r.full_name.split("/").pop();
+      return `<div class="repo-picker-item${active}" onclick="pickRepo('${esc(r.full_name)}')">
+      <span class="repo-picker-name">${esc(shortName)} ${badge} ${priv}</span>
+    </div>`;
+    })
+    .join("");
+}
+
+async function pickRepo(fullName) {
+  // Ensure repo is cloned so we have a valid directory for opencode
+  const existing = clonedRepos.find((r) => r.name === fullName);
+  if (existing) {
+    await selectRepo(existing);
+    return;
+  }
+  // Clone first
+  closeRepoPicker();
+  setSessionListHTML('<div class="session-empty">Cloning…</div>');
+  try {
+    const result = await post("/admin/repos/clone", { repo: fullName });
+    const repo = { name: fullName, path: result.path };
+    clonedRepos.push(repo);
+    await selectRepo(repo);
+  } catch (e) {
+    alert(`Clone failed: ${e.message}`);
+    setSessionListHTML('<div class="session-empty">Clone failed</div>');
+  }
+}
+
+// ============================================================================
+// Sessions
+// ============================================================================
+
+async function loadSessions() {
+  if (!currentRepo) {
+    setSessionListHTML('<div class="session-empty">Select a repo to see sessions</div>');
+    return;
+  }
+  try {
+    const [sessionData, wtData] = await Promise.all([
+      get("/session", { directory: currentRepo.path }),
+      get("/admin/worktrees"),
+    ]);
+    sessions = Array.isArray(sessionData) ? sessionData : (sessionData?.sessions ?? []);
+    allWorktrees = wtData?.worktrees ?? [];
+
+    // Cross-reference sessions with worktrees to populate sessionDirs.
+    // Worktree session_id is the suffix we used when creating the worktree (a
+    // random UUID fragment), NOT the opencode session ID. But the worktree path
+    // is what we used as the directory when creating the opencode session, so
+    // the opencode session object might have it in its directory field.
+    //
+    // Strategy: for each session, check if it already has a directory field.
+    // If not, try to find a worktree for this repo whose path we can assign.
+    // This is imperfect — if there are multiple worktrees and sessions, we
+    // can't reliably match them without a stored mapping. But for now, sessions
+    // that were created before sessionDirs existed won't have the mapping.
+    let dirsChanged = false;
+    for (const s of sessions) {
+      if (sessionDirs[s.id]) continue;
+      if (s.directory) {
+        sessionDirs[s.id] = s.directory;
+        dirsChanged = true;
+      }
+    }
+    if (dirsChanged) saveSessionDirs();
+
     renderSessionList();
   } catch (e) {
     console.error("loadSessions:", e);
@@ -355,8 +319,9 @@ async function loadSessions() {
 async function deleteSession(id, ev) {
   ev.stopPropagation();
   if (!confirm("Delete this session?")) return;
+  const dir = dirFor(id);
   try {
-    await del(`/session/${id}`);
+    await del(`/session/${id}`, { directory: dir });
   } catch (e) {
     if (!e.message.startsWith("404")) {
       alert(`Failed: ${e.message}`);
@@ -366,11 +331,14 @@ async function deleteSession(id, ev) {
   sessions = sessions.filter((s) => s.id !== id);
   delete messages[id];
   delete deltas[id];
+  delete sessionDirs[id];
+  saveSessionDirs();
   if (currentId === id) {
     currentId = null;
     renderMain();
   }
   renderSessionList();
+  syncSSE();
 }
 
 async function selectSession(id) {
@@ -385,9 +353,9 @@ async function selectSession(id) {
 }
 
 async function fetchMessages(id) {
+  const dir = dirFor(id);
   try {
-    const data = await get(`/session/${id}/message`);
-    // v2 format: [{ info: {id, role, ...}, parts: [...] }]
+    const data = await get(`/session/${id}/message`, { directory: dir });
     messages[id] = Array.isArray(data) ? data : [];
   } catch (e) {
     console.error("fetchMessages:", e);
@@ -412,14 +380,16 @@ async function sendPrompt() {
   });
   renderMessages();
 
+  const dir = dirFor(currentId);
   try {
     const body = { parts: [{ type: "text", text }] };
     if (selectedModel) {
       body.model = { providerID: selectedModel.providerID, modelID: selectedModel.modelID };
     }
-    await post(`/session/${currentId}/prompt_async`, body);
+    await post(`/session/${currentId}/prompt_async`, body, { directory: dir });
     generating[currentId] = true;
     renderAbortBtn();
+    renderSessionList();
   } catch (e) {
     setSending(false);
     alert(`Send failed: ${e.message}`);
@@ -428,151 +398,64 @@ async function sendPrompt() {
 
 async function abortSession() {
   if (!currentId) return;
+  const dir = dirFor(currentId);
   try {
-    await post(`/session/${currentId}/abort`);
+    await post(`/session/${currentId}/abort`, undefined, { directory: dir });
   } catch (e) {
     console.warn("abort:", e);
   }
   generating[currentId] = false;
   setSending(false);
   renderAbortBtn();
+  renderSessionList();
 }
 
-// --- New session flow ---
-const repPickerHTML = [
-  '<div class="repo-search-wrap">',
-  '  <input class="form-input" id="repoSearch" placeholder="Search repos…" autocomplete="off" spellcheck="false">',
-  "</div>",
-  '<div class="repo-list" id="repoList">',
-  '  <div class="session-empty">Loading repos…</div>',
-  "</div>",
-].join("\n");
+// ============================================================================
+// New session
+// ============================================================================
 
-async function openNewPanel() {
-  // If we have a last-used repo, skip the picker and auto-start
-  const lastRepo = loadLastRepo();
-  if (lastRepo) {
-    closeReposPanel();
-    closeSidebar();
-    // Show progress in the main empty-state area
-    currentId = null;
-    document.getElementById("inputArea").classList.remove("visible");
-    document.getElementById("messages").innerHTML =
-      `<div class="empty-state"><p>Setting up ${esc(lastRepo.full_name)}…</p></div>`;
-    document.getElementById("chatTitle").textContent = "New session";
-    document.getElementById("chatTitle").className = "chat-title";
-    await startNewSession(lastRepo.full_name, lastRepo.default_branch);
-    // On failure, startNewSession shows an alert but doesn't throw — restore UI
-    if (!currentId) renderMain();
+async function startNewSession() {
+  if (!currentRepo) {
+    openRepoPicker();
     return;
   }
-  openRepoPickerPanel();
-}
-
-function openRepoPickerPanel() {
-  closeReposPanel();
-  // Restore repo picker DOM in case a previous startNewSession replaced it with progress text
-  document.getElementById("newPanelBody").innerHTML = repPickerHTML;
-  document.getElementById("newPanel").classList.add("visible");
-  document.getElementById("newBtn").classList.add("active");
-  document.getElementById("repoSearch").value = "";
-  document.getElementById("repoSearch").focus();
-  loadRepoPickerData().then(renderRepoPicker);
-}
-
-function closeNewPanel() {
-  document.getElementById("newPanel").classList.remove("visible");
-  document.getElementById("newBtn").classList.remove("active");
-}
-
-async function loadRepoPickerData() {
-  try {
-    const [ghData, clonedData] = await Promise.all([
-      get("/admin/repos/github").catch((e) => {
-        console.error("GitHub repos:", e);
-        return null;
-      }),
-      get("/admin/repos"),
-    ]);
-    githubRepos = ghData?.repos ?? [];
-    clonedRepos = clonedData?.repos ?? [];
-  } catch (e) {
-    console.error("loadRepoPickerData:", e);
-  }
-}
-
-function renderRepoPicker() {
-  const query = (document.getElementById("repoSearch").value || "").toLowerCase();
-  const container = document.getElementById("repoList");
-
-  let repos = githubRepos.map((r) => ({
-    ...r,
-    cloned: clonedRepos.includes(r.full_name),
-  }));
-
-  if (query) {
-    repos = repos.filter(
-      (r) => r.full_name.toLowerCase().includes(query) || (r.description || "").toLowerCase().includes(query),
-    );
-  }
-
-  if (!repos.length) {
-    const msg = githubRepos.length === 0 && !query ? "No repos available — check GITHUB_TOKEN?" : "No repos found";
-    container.innerHTML = `<div class="session-empty">${msg}</div>`;
-    return;
-  }
-
-  container.innerHTML = repos
-    .map((r) => {
-      const badge = r.cloned ? '<span class="repo-badge cloned">cloned</span>' : "";
-      const priv = r.private ? '<span class="repo-badge private">private</span>' : "";
-      return `<div class="repo-item" onclick="startNewSession('${esc(r.full_name)}', '${esc(r.default_branch)}')">
-      <div class="repo-item-info">
-        <div class="repo-item-name">${esc(r.full_name)} ${badge} ${priv}</div>
-        ${r.description ? `<div class="repo-item-desc">${esc(r.description)}</div>` : ""}
-      </div>
-    </div>`;
-    })
-    .join("");
-}
-
-async function startNewSession(repoFullName, defaultBranch) {
-  saveLastRepo({ full_name: repoFullName, default_branch: defaultBranch });
-
-  const panel = document.getElementById("newPanelBody");
-  panel.innerHTML = `<div class="session-empty">Setting up ${esc(repoFullName)}…</div>`;
+  closeSidebar();
+  currentId = null;
+  document.getElementById("inputArea").classList.remove("visible");
+  document.getElementById("messages").innerHTML =
+    `<div class="empty-state"><p>Creating session for ${esc(currentRepo.name.split("/").pop())}…</p></div>`;
+  document.getElementById("chatTitle").textContent = "New session";
+  document.getElementById("chatTitle").className = "chat-title";
 
   try {
-    if (!clonedRepos.includes(repoFullName)) {
-      panel.innerHTML = `<div class="session-empty">Cloning ${esc(repoFullName)}…</div>`;
-      await post("/admin/repos/clone", { repo: repoFullName });
-      clonedRepos.push(repoFullName);
-    }
-
-    panel.innerHTML = `<div class="session-empty">Creating worktree…</div>`;
+    // Create worktree
     const wtId = crypto.randomUUID().slice(0, 12);
     const wt = await post("/admin/worktrees", {
-      repo: repoFullName,
+      repo: currentRepo.name,
       session_id: wtId,
-      branch: defaultBranch || "main",
+      branch: "main",
     });
 
-    panel.innerHTML = `<div class="session-empty">Creating session…</div>`;
-    const session = await post("/session", { directory: wt.path });
+    // Create opencode session using the worktree directory
+    const session = await post("/session", undefined, { directory: wt.path });
+    sessionDirs[session.id] = wt.path;
+    saveSessionDirs();
 
     if (!sessions.find((x) => x.id === session.id)) sessions.unshift(session);
     renderSessionList();
     await selectSession(session.id);
-    closeNewPanel();
+    syncSSE();
   } catch (e) {
     alert(`Failed: ${e.message}`);
-    // openNewPanel() will restore the repo picker HTML next time it's opened
+    renderMain();
   }
 }
 
-// --- Repos & worktrees management panel ---
+// ============================================================================
+// Repos & worktrees management panel
+// ============================================================================
+
 async function openReposPanel() {
-  closeNewPanel();
   const panel = document.getElementById("reposPanel");
   panel.classList.add("visible");
   document.getElementById("reposBtn").classList.add("active");
@@ -605,11 +488,11 @@ function renderReposPanel() {
 
   let html = "";
   for (const repo of clonedRepos) {
-    const wts = allWorktrees.filter((w) => w.repo === repo);
-    const [owner, name] = repo.split("/");
+    const wts = allWorktrees.filter((w) => w.repo === repo.name);
+    const [owner, name] = repo.name.split("/");
     html += `<div class="mgmt-repo">
       <div class="mgmt-repo-header">
-        <span class="mgmt-repo-name">${esc(repo)}</span>
+        <span class="mgmt-repo-name">${esc(repo.name)}</span>
         <button class="session-del visible-always" onclick="deleteRepo('${esc(owner)}', '${esc(name)}')" title="Delete repo">✕</button>
       </div>`;
     if (wts.length) {
@@ -652,24 +535,93 @@ async function deleteWorktree(owner, name, sessionId) {
   }
 }
 
-// --- SSE ---
-function connectSSE() {
-  if (sse) sse.close();
-  sse = new EventSource("/event");
+// ============================================================================
+// SSE — one stream per recently-active worktree directory
+// ============================================================================
 
-  sse.onopen = () => {
-    const el = document.getElementById("sseStatus");
-    el.textContent = "● live";
+const SSE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Determine which worktree directories need SSE streams (sessions updated
+// within the last 24h), connect/disconnect to match, and poll initial status
+// for newly connected directories.
+function syncSSE() {
+  const now = Date.now();
+  const needed = new Set();
+  for (const s of sessions) {
+    const dir = dirFor(s.id);
+    if (!dir) continue;
+    const updated = s.time_updated ?? s.timeUpdated ?? 0;
+    // Treat missing/zero timestamps as "recent" — they're likely brand new sessions
+    if (updated === 0 || now - updated < SSE_MAX_AGE_MS) {
+      needed.add(dir);
+    }
+  }
+
+  // Close streams for directories we no longer need
+  for (const dir of Object.keys(sseStreams)) {
+    if (!needed.has(dir)) {
+      console.log(`SSE: closing stream for ${dir}`);
+      sseStreams[dir].close();
+      delete sseStreams[dir];
+    }
+  }
+
+  // Open streams for new directories + poll their initial status
+  for (const dir of needed) {
+    if (!sseStreams[dir]) {
+      connectSSEForDir(dir);
+      pollSessionStatus(dir);
+    }
+  }
+
+  renderSSEStatus();
+}
+
+function connectSSEForDir(dir) {
+  const url = `/event?directory=${encodeURIComponent(dir)}`;
+  console.log(`SSE: connecting for ${dir}`);
+  const es = new EventSource(url);
+  sseStreams[dir] = es;
+
+  es.onopen = () => renderSSEStatus();
+  es.onerror = () => renderSSEStatus();
+  es.onmessage = (ev) => handleEvent(ev.data);
+}
+
+// GET /session/status returns { sessionID: { type: "idle"|"busy"|"retry" } }
+// for all sessions in the given directory. This fills in the initial busy/idle
+// state that we'd otherwise miss since SSE only delivers future state changes.
+async function pollSessionStatus(dir) {
+  try {
+    const data = await get("/session/status", { directory: dir });
+    if (!data) return;
+    for (const [sid, status] of Object.entries(data)) {
+      generating[sid] = status.type !== "idle";
+    }
+    renderSessionList();
+    if (currentId && generating[currentId] !== undefined) {
+      renderAbortBtn();
+    }
+  } catch (e) {
+    console.debug("pollSessionStatus:", e.message);
+  }
+}
+
+function renderSSEStatus() {
+  const el = document.getElementById("sseStatus");
+  const dirs = Object.keys(sseStreams);
+  if (dirs.length === 0) {
+    el.textContent = "";
+    return;
+  }
+  const allOpen = dirs.every((d) => sseStreams[d].readyState === EventSource.OPEN);
+  if (allOpen) {
+    el.textContent = `● ${dirs.length} stream${dirs.length > 1 ? "s" : ""}`;
     el.style.color = "var(--green)";
-  };
-  sse.onerror = () => {
-    const el = document.getElementById("sseStatus");
+  } else {
     el.textContent = "○ reconnecting";
     el.style.color = "var(--orange)";
-  };
-  // opencode sends all events as unnamed SSE messages (no "event:" field),
-  // so onmessage catches everything
-  sse.onmessage = (ev) => handleEvent(ev.data);
+  }
 }
 
 function handleEvent(raw) {
@@ -683,7 +635,9 @@ function handleEvent(raw) {
 
   const type = ev.type ?? "";
   const props = ev.properties ?? {};
+  if (type === "server.heartbeat" || type === "server.connected") return;
   console.debug("SSE:", type, props);
+
   // --- Session events ---
   if (type === "session.created" || type === "session.updated") {
     const info = props.info;
@@ -728,7 +682,6 @@ function handleEvent(raw) {
     const sid = info.sessionID;
     if (!sid || !messages[sid]) return;
     const list = messages[sid];
-    // Remove optimistic messages when real user message arrives
     if (info.role === "user") {
       const optIdx = list.findIndex((m) => m.info.id.startsWith("opt-"));
       if (optIdx >= 0) list.splice(optIdx, 1);
@@ -739,7 +692,6 @@ function handleEvent(raw) {
     } else {
       list.push({ info, parts: [] });
     }
-    // Assistant message with error — add as error message
     if (info.role === "assistant" && info.error) {
       const err = info.error;
       const errMsg = err.data?.message ?? err.message ?? err.name ?? "Unknown error";
@@ -754,7 +706,6 @@ function handleEvent(raw) {
     if (sid === currentId) renderMessages();
   }
 
-  // Part created or updated — upsert into the message's parts array
   if (type === "message.part.updated") {
     const part = props.part;
     if (!part) return;
@@ -769,11 +720,9 @@ function handleEvent(raw) {
     if (sid === currentId) renderMessages();
   }
 
-  // Streaming text delta — append to the part's text field
   if (type === "message.part.delta") {
     const { sessionID, messageID, partID, field, delta } = props;
-    if (!sessionID || sessionID !== currentId) return;
-    if (!messages[sessionID]) return;
+    if (!sessionID || !messages[sessionID]) return;
     const msg = messages[sessionID].find((m) => m.info.id === messageID);
     if (msg) {
       const part = msg.parts.find((p) => p.id === partID);
@@ -781,42 +730,204 @@ function handleEvent(raw) {
         part.text = (part.text ?? "") + delta;
       }
     }
-    // Also track in deltas for cursor rendering
     if (!deltas[sessionID]) deltas[sessionID] = {};
     deltas[sessionID][partID] = true;
-    renderMessages();
-    // Clear delta flag after render so cursor disappears when streaming stops
-    requestAnimationFrame(() => {
-      if (deltas[sessionID]) delete deltas[sessionID][partID];
-    });
+    if (sessionID === currentId) {
+      renderMessages();
+      requestAnimationFrame(() => {
+        if (deltas[sessionID]) delete deltas[sessionID][partID];
+      });
+    }
   }
 }
 
-// --- Render ---
+// ============================================================================
+// Model picker
+// ============================================================================
+
+async function loadProviders() {
+  try {
+    const data = await get("/provider");
+    const all = data?.all ?? [];
+    connectedProviders = data?.connected ?? [];
+    const defaults = data?.default ?? {};
+
+    providers = all
+      .filter((p) => connectedProviders.includes(p.id))
+      .map((p) => {
+        const models = Object.values(p.models ?? {}).sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));
+        return { id: p.id, name: p.name ?? p.id, models };
+      })
+      .filter((p) => p.models.length > 0);
+
+    if (!selectedModel && providers.length > 0) {
+      const last = loadLastModel();
+      if (last) {
+        const p = providers.find((p) => p.id === last.providerID);
+        const m = p?.models.find((m) => m.id === last.modelID);
+        if (m) selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
+      }
+      if (!selectedModel) {
+        for (const p of providers) {
+          const defModelId = defaults[p.id];
+          if (defModelId) {
+            const m = p.models.find((m) => m.id === defModelId);
+            if (m) {
+              selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
+              break;
+            }
+          }
+        }
+      }
+      if (!selectedModel) {
+        const p = providers[0];
+        const m = p.models[0];
+        selectedModel = { providerID: p.id, modelID: m.id, name: m.name ?? m.id };
+      }
+    }
+    renderModelBtn();
+  } catch (e) {
+    console.error("loadProviders:", e);
+  }
+}
+
+function renderModelBtn() {
+  const btn = document.getElementById("modelBtn");
+  if (!btn) return;
+  btn.textContent = selectedModel ? selectedModel.name : "Model…";
+  btn.title = selectedModel ? `${selectedModel.providerID}/${selectedModel.modelID}` : "Select model";
+}
+
+function openModelPicker() {
+  const panel = document.getElementById("modelPanel");
+  panel.classList.toggle("visible");
+  if (panel.classList.contains("visible")) {
+    const search = document.getElementById("modelSearch");
+    if (search) search.value = "";
+    renderModelPicker();
+    if (search) search.focus();
+  }
+}
+
+function closeModelPicker() {
+  document.getElementById("modelPanel").classList.remove("visible");
+}
+
+function renderModelPicker() {
+  const container = document.getElementById("modelList");
+  if (!providers.length) {
+    container.innerHTML = '<div class="session-empty">No providers connected</div>';
+    return;
+  }
+  const query = (document.getElementById("modelSearch")?.value || "").toLowerCase();
+  const queryWords = query.split(/\s+/).filter(Boolean);
+  const favs = loadFavorites();
+
+  const allModels = [];
+  for (const p of providers) {
+    for (const m of p.models) {
+      const name = m.name ?? m.id;
+      const searchable = `${p.id}/${m.id}`.toLowerCase();
+      if (queryWords.length > 0 && !queryWords.every((w) => searchable.includes(w))) continue;
+      allModels.push({ provider: p, model: m, name, key: modelKey(p.id, m.id) });
+    }
+  }
+
+  const favoriteModels = allModels.filter((x) => favs.includes(x.key));
+  const restModels = allModels.filter((x) => !favs.includes(x.key));
+
+  function renderModelItem(providerID, m, name, isFav) {
+    const active = selectedModel?.providerID === providerID && selectedModel?.modelID === m.id ? " active" : "";
+    const starCls = isFav ? "model-star starred" : "model-star";
+    return `<div class="model-item${active}" onclick="pickModel('${esc(providerID)}', '${esc(m.id)}', '${esc(name)}')">
+      <button class="${starCls}" onclick="toggleFavorite('${esc(providerID)}', '${esc(m.id)}', event)" title="${isFav ? "Remove from favorites" : "Add to favorites"}">&#9733;</button>
+      <span class="model-name">${esc(name)}</span>
+    </div>`;
+  }
+
+  let html = "";
+  if (favoriteModels.length > 0) {
+    html += '<div class="model-provider">Favorites</div>';
+    for (const x of favoriteModels) html += renderModelItem(x.provider.id, x.model, x.name, true);
+  }
+  const grouped = new Map();
+  for (const x of restModels) {
+    if (!grouped.has(x.provider.id)) grouped.set(x.provider.id, { provider: x.provider, models: [] });
+    grouped.get(x.provider.id).models.push(x);
+  }
+  for (const [, group] of grouped) {
+    html += `<div class="model-provider">${esc(group.provider.name)}</div>`;
+    for (const x of group.models) html += renderModelItem(group.provider.id, x.model, x.name, false);
+  }
+  if (!html) html = '<div class="session-empty">No models match</div>';
+  container.innerHTML = html;
+}
+
+function pickModel(providerID, modelID, name) {
+  selectedModel = { providerID, modelID, name };
+  saveLastModel(selectedModel);
+  renderModelBtn();
+  closeModelPicker();
+}
+
+function toggleFavorite(providerID, modelID, ev) {
+  ev.stopPropagation();
+  const key = modelKey(providerID, modelID);
+  const favs = loadFavorites();
+  const idx = favs.indexOf(key);
+  if (idx >= 0) favs.splice(idx, 1);
+  else favs.push(key);
+  saveFavorites(favs);
+  renderModelPicker();
+}
+
+// ============================================================================
+// Render
+// ============================================================================
+
 function renderSessionList() {
+  if (!currentRepo) {
+    setSessionListHTML('<div class="session-empty">Select a repo to see sessions</div>');
+    return;
+  }
   if (!sessions.length) {
     setSessionListHTML('<div class="session-empty">No sessions yet</div>');
     return;
   }
+  // Sort by most recently updated first
+  const sorted = [...sessions].sort((a, b) => {
+    const ta = a.time_updated ?? a.timeUpdated ?? 0;
+    const tb = b.time_updated ?? b.timeUpdated ?? 0;
+    return tb - ta;
+  });
   setSessionListHTML(
-    sessions
+    sorted
       .map((s) => {
         const active = s.id === currentId ? " active" : "";
         const title = s.title || s.id?.slice(0, 14) || "untitled";
-        const dir = s.directory ? trimDir(s.directory) : "";
         const busy = generating[s.id] ? '<span class="session-spinner"></span>' : "";
+        const updated = s.time_updated ?? s.timeUpdated ?? 0;
+        const ago = updated ? timeAgo(updated) : "";
         return `<div class="session-item${active}" onclick="selectSession('${esc(s.id)}')">
       <div class="session-info">
         <div class="session-title">${busy}${esc(title)}</div>
-        ${dir ? `<div class="session-dir">${esc(dir)}</div>` : ""}
+        ${ago ? `<div class="session-time">${esc(ago)}</div>` : ""}
       </div>
-      <!-- delete button disabled: too easy to fat-finger on mobile
-      <button class="session-del" onclick="deleteSession('${esc(s.id)}', event)" title="Delete">✕</button>
-      -->
     </div>`;
       })
       .join(""),
   );
+}
+
+function timeAgo(ts) {
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  return `${days}d ago`;
 }
 
 function setSessionListHTML(html) {
@@ -829,8 +940,8 @@ function renderMain() {
   if (!currentId) {
     inputArea.classList.add("visible");
     promptRow.classList.add("hidden");
-    document.getElementById("messages").innerHTML =
-      '<div class="empty-state"><h2>dancodes</h2><p>Select a session or create a new one</p></div>';
+    const msg = currentRepo ? "Select a session or create a new one" : "Select a repo, then start a session";
+    document.getElementById("messages").innerHTML = `<div class="empty-state"><h2>dancodes</h2><p>${msg}</p></div>`;
     document.getElementById("chatTitle").textContent = "Select a session";
     document.getElementById("chatTitle").className = "chat-title";
     renderAbortBtn();
@@ -845,9 +956,8 @@ function renderMain() {
 function renderChatTitle() {
   const s = sessions.find((s) => s.id === currentId);
   const title = s?.title || currentId?.slice(0, 16) || "Session";
-  const dir = s?.directory ? ` — ${trimDir(s.directory)}` : "";
   const el = document.getElementById("chatTitle");
-  el.textContent = title + dir;
+  el.textContent = title;
   el.className = "chat-title active";
 }
 
@@ -865,9 +975,7 @@ function renderMessages() {
   const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
 
   let html = "";
-  for (const msg of msgs) {
-    html += renderMsg(msg, activeDelta);
-  }
+  for (const msg of msgs) html += renderMsg(msg, activeDelta);
 
   if (!html) {
     html =
@@ -884,8 +992,10 @@ function renderMsg(msg, activeDelta) {
   const role = info.role ?? "assistant";
 
   if (role === "user") {
-    const textParts = parts.filter((p) => p.type === "text");
-    const text = textParts.map((p) => p.text ?? "").join("");
+    const text = parts
+      .filter((p) => p.type === "text")
+      .map((p) => p.text ?? "")
+      .join("");
     if (!text) return "";
     return `<div class="msg user"><div class="msg-role">user</div>${esc(text)}</div>`;
   }
@@ -895,7 +1005,6 @@ function renderMsg(msg, activeDelta) {
     return `<div class="msg error"><div class="msg-role">error</div>${esc(text)}</div>`;
   }
 
-  // Assistant message — render each part
   let partHtml = "";
   for (const p of parts) {
     const isStreaming = activeDelta[p.id];
@@ -916,7 +1025,6 @@ function renderMsg(msg, activeDelta) {
         partHtml += `<div class="msg-part step-finish">${inp + out} tokens (${inp} in, ${out} out${cached ? `, ${cached} cached` : ""})</div>`;
       }
     }
-    // step-start, snapshot, patch, compaction, agent — skip (internal)
   }
 
   if (!partHtml) return "";
@@ -946,18 +1054,16 @@ function renderToolPart(p) {
   return "";
 }
 
-// --- UI helpers ---
+// ============================================================================
+// UI helpers
+// ============================================================================
+
 function esc(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function trimDir(dir) {
-  const parts = dir.split("/").filter(Boolean);
-  return parts.slice(-2).join("/");
 }
 
 function setSending(on) {
@@ -975,21 +1081,21 @@ function closeSidebar() {
   document.getElementById("overlay").classList.remove("visible");
 }
 
-// --- Wire up ---
-document.getElementById("newBtn").onclick = openNewPanel;
-document.getElementById("newPanelClose").onclick = closeNewPanel;
+// ============================================================================
+// Wire up
+// ============================================================================
+
+document.getElementById("newBtn").onclick = startNewSession;
 document.getElementById("reposBtn").onclick = openReposPanel;
 document.getElementById("reposPanelClose").onclick = closeReposPanel;
 document.getElementById("sendBtn").onclick = sendPrompt;
 document.getElementById("abortBtn").onclick = abortSession;
 document.getElementById("modelBtn").onclick = openModelPicker;
-document.getElementById("repoBtn").onclick = openRepoPicker;
-document.getElementById("repoPickerSearch").addEventListener("input", renderRepoPickerList);
+document.getElementById("repoSelectorSearch").addEventListener("input", renderRepoSelectorList);
 document.getElementById("menuBtn").onclick = () => {
   document.getElementById("sidebar").classList.toggle("open");
   document.getElementById("overlay").classList.toggle("visible");
 };
-document.getElementById("repoSearch").addEventListener("input", renderRepoPicker);
 document.getElementById("modelSearch").addEventListener("input", renderModelPicker);
 document.getElementById("prompt").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
@@ -1008,9 +1114,9 @@ document.addEventListener("click", (e) => {
   if (modelPanel.classList.contains("visible") && !modelPanel.contains(e.target) && e.target !== modelBtn) {
     closeModelPicker();
   }
-  const repoPanel = document.getElementById("repoPickerPanel");
-  const repoBtn = document.getElementById("repoBtn");
-  if (repoPanel.classList.contains("visible") && !repoPanel.contains(e.target) && e.target !== repoBtn) {
+  const repoPicker = document.getElementById("repoSelectorPicker");
+  const repoBtn = document.getElementById("repoSelectorBtn");
+  if (repoPicker.classList.contains("visible") && !repoPicker.contains(e.target) && e.target !== repoBtn) {
     closeRepoPicker();
   }
 });
@@ -1024,15 +1130,32 @@ window.deleteWorktree = deleteWorktree;
 window.pickModel = pickModel;
 window.toggleFavorite = toggleFavorite;
 window.pickRepo = pickRepo;
+window.openRepoPicker = openRepoPicker;
 
-// --- Init ---
+// ============================================================================
+// Init
+// ============================================================================
+
 renderMain();
+renderRepoSelectorBtn();
 checkHealth();
-loadSessions();
 loadProviders();
-renderRepoBtn();
-connectSSE();
 setInterval(checkHealth, 30_000);
+
+// Restore last repo and load its sessions
+const savedRepo = loadLastRepo();
+if (savedRepo) {
+  // Verify the saved repo is still cloned
+  get("/admin/repos")
+    .then((data) => {
+      clonedRepos = data?.repos ?? [];
+      const found = clonedRepos.find((r) => r.name === savedRepo.name);
+      if (found) {
+        selectRepo(found);
+      }
+    })
+    .catch((e) => console.error("init:", e));
+}
 
 fetch("/version.json")
   .then((r) => r.json())
