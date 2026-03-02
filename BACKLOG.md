@@ -1,4 +1,6 @@
 # Backlog (see AGENTS.md)
+- [2026-03-02] Pin all deps versions
+- [2026-03-02] Pin opencode version, plus add a skill for what to do when upgrading opencode (e.g. check changelog for api changes)
 - [2026-03-02] Mobile is totally broken since rewrite?
 - [2026-03-02] Add buttons to show git status/diff/log in chat session
 - [2026-03-02] Figure out how to connect from opencode cli — i think custom auth currently defeats it?
