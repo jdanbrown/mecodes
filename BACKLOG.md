@@ -17,5 +17,3 @@
 - [2026-03-02] Allow typing input while LLM is in progress — what should it do if you hit enter? What does OpenCode CLI do? That'd be a good UX to mimic if feasible
 - [2026-03-01] Update formatting on backend python logging to be not horribly ugly and hard to read
 - [2026-02-28] Frontend debug log panel — intercept console.log, show in a scrollable panel in the UI, easy to copy/paste from phone for diagnostics
-- [2026-02-25] Close the dev loop
-  - Edit and deploy dancodes from dancodes
