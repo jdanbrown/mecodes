@@ -19,7 +19,7 @@ fi
 
 show_cmd docker run \
     --rm \
-    -p 8080:8080 \
+    `[ -z "${DOCKER_NO_PORT:-}" ] && echo "-p 8080:8080"` \
     -e AUTH_PASSWORD='dev' \
     -e AUTH_SECRET='dancodes-dev-secret' \
     -e GITHUB_USER="$GITHUB_USER" \
