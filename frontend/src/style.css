@@ -64,7 +64,7 @@ button {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   font-size: 12px;
-  min-height: 36px;
+  min-height: 40px;
 }
 .top-bar-btn {
   background: none;
@@ -77,10 +77,25 @@ button {
 .top-bar-btn:hover {
   color: var(--text);
 }
-.top-bar-title {
-  font-weight: 600;
-  color: var(--text);
-  font-size: 13px;
+.top-bar-btn.new-session {
+  font-size: 22px;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.4rem;
+}
+.top-bar-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0;
+}
+.top-bar-session {
+  font-size: 10px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+  line-height: 1.2;
 }
 .top-bar-spacer {
   flex: 1;
@@ -96,6 +111,45 @@ button {
 }
 .top-bar-link:hover {
   color: var(--text);
+}
+
+/* Inline repo picker in top bar */
+.top-bar-repo-picker {
+  position: relative;
+}
+.top-bar-repo-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+  display: block;
+  text-align: left;
+  line-height: 1.3;
+}
+.top-bar-repo-btn:hover {
+  color: var(--blue);
+}
+.top-bar-repo-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 240px;
+  max-width: 80vw;
+  max-height: 60vh;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
 }
 
 /* --- Overlay (sidebar backdrop) --- */
@@ -131,57 +185,11 @@ button {
     transform: translateX(0);
   }
 }
-.sidebar-header {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-.sidebar-title {
-  font-weight: 600;
-  font-size: 14px;
-}
 .sidebar-empty {
   padding: 1rem;
   font-size: 12px;
   color: var(--dim);
   text-align: center;
-}
-
-/* --- Repo picker --- */
-.repo-picker {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-  position: relative;
-}
-.repo-picker-btn {
-  width: 100%;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 0.4rem 0.5rem;
-  cursor: pointer;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.repo-picker-btn:hover {
-  border-color: var(--blue);
-}
-.repo-picker-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0.75rem;
-  right: 0.75rem;
-  max-height: 60vh;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  z-index: 20;
-  margin-top: 0.25rem;
-  display: flex;
-  flex-direction: column;
 }
 
 /* --- Session list --- */
