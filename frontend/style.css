@@ -15,16 +15,17 @@
   --red: #f85149;
   --orange: #d29922;
 }
+/* overflow: hidden on html prevents iOS Safari from scrolling the page when
+   the keyboard opens — without it, the top bar gets pushed off-screen */
+html {
+  height: 100%;
+  overflow: hidden;
+}
 body {
   font-family: system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
-  /* position: fixed prevents iOS Safari from scrolling the body when the
-     keyboard opens to focus an input — without it, the top bar gets pushed
-     off-screen. Using inset: 0 instead of width/height so the browser
-     computes dimensions from the visual viewport (which shrinks with keyboard). */
-  position: fixed;
-  inset: 0;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;

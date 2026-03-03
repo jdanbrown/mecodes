@@ -1107,6 +1107,12 @@ document.getElementById("prompt").addEventListener("input", function () {
   autoResize(this);
 });
 
+// iOS Safari scrolls the page when focusing an input (to center it on screen),
+// which pushes the top bar off-screen. Counter this by scrolling back to top.
+window.addEventListener("scroll", () => {
+  if (window.scrollY !== 0) window.scrollTo(0, 0);
+});
+
 // Close pickers when clicking outside
 document.addEventListener("click", (e) => {
   const modelPanel = document.getElementById("modelPanel");
