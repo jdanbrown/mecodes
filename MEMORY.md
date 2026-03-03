@@ -11,6 +11,12 @@
 - 2026-02-28 32452fe
 
 ## Memory log
+- [2026-03-03] Corrupt git object on Fly volume — `git fetch` failed with "inflate: data stream error"
+  - A loose object in `/vol/projects/repos/.../.git/objects/` was corrupted (likely Fly volume fsync issue)
+  - Fix: delete the corrupt file and re-fetch — `python3 -c "import os; os.unlink('<path>')"` then `git fetch origin`
+  - Don't use `rm` on git objects in this environment — they're read-only (`-r--r--r--`) and `rm` hangs waiting for confirmation. Use `rm -f` or `python3 os.unlink()`
+  - Root cause unclear: possibly a Fly volume latency spike or VM migration mid-write. No concurrent chats were running.
+  - Not a code bug — likely a Fly volume reliability edge case
 - [2026-03-03] Worktrees must branch from `origin/main`, not local `main`
   - The repo clone's local `main` goes stale (never fetched after initial clone)
   - Sidecar now does `git fetch origin` before `git worktree add ... origin/main`
