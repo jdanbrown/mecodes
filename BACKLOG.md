@@ -1,4 +1,5 @@
 # Backlog (see AGENTS.md)
+- [2026-03-04] Replace em-dashes and smart quotes in .md files with ascii — opencode edit tool chokes on fancy chars (converted by read tool, or something)
 - [2026-03-03] Make different favicon (for mobile home screen icon)
 - [2026-03-03] Fix: Scroll in chat doesn't follow when new content appears (only follow when scroll is at bottom, don't jank if scrolled up somewhere)
 - [2026-03-03] Default model and favorite models keeps reverting — should all be client-side state, right?
