@@ -11,6 +11,13 @@
 - 2026-02-28 32452fe
 
 ## Memory log
+- [2026-03-04] Fly volume I/O stalls — pattern emerging, second incident
+  - Symptoms all hit at once: multiple corrupt (empty) git objects, bash tool calls hanging (tsc/biome >2min timeout), page loads hanging
+  - This time objects were empty files (not garbled like the inflate error on 03-03) — suggests writes acked but never flushed
+  - Likely cause: Fly VM migration or volume detach/reattach. When the volume stalls, everything doing disk I/O hangs simultaneously.
+  - Fix is the same: delete corrupt objects with `python3 os.unlink()`, `git fetch origin`, and if HEAD is damaged `git reset --hard origin/main` to get back to a clean state
+  - If you see bash tool calls hanging + page loads hanging at the same time, suspect a Fly volume stall — don't waste time debugging code
+  - Two incidents so far: 2026-03-03 (inflate error, single object), 2026-03-04 (empty files, multiple objects + hangs)
 - [2026-03-03] Corrupt git object on Fly volume — `git fetch` failed with "inflate: data stream error"
   - A loose object in `/vol/projects/repos/.../.git/objects/` was corrupted (likely Fly volume fsync issue)
   - Fix: delete the corrupt file and re-fetch — `python3 -c "import os; os.unlink('<path>')"` then `git fetch origin`
