@@ -202,6 +202,11 @@ dev/node-setup
 dev/check
 ```
 
+### Terminal tabs
+- `gh run list` -- watch deploys in github actions after push
+- `fly logs` -- watch prod logs
+- `dev/docker-run` -- run local dev
+
 ## Deploy (to fly.io)
 
 ### One-time setup
