@@ -11,9 +11,9 @@ primary_region = "iad"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "off"
+  auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [http_service.concurrency]
     type = "connections"
@@ -21,8 +21,8 @@ primary_region = "iad"
     soft_limit = 80
 
 [[vm]]
-  size = "shared-cpu-2x"
-  memory = "1gb"
+  size = "performance-8x"
+  memory = "16gb"
 
 [mounts]
   source = "dancodes_vol"

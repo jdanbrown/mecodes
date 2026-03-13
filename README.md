@@ -106,9 +106,13 @@ Auto-generated OpenAPI docs at `/admin/docs`.
 - On Fly this is fine since deploys replace the VM
 
 ## Hosting: Fly.io
-- 1 machine (`shared-cpu-2x`, 1GB RAM) + 1 volume (10GB), estimated ~$5-15/mo
-- **`auto_stop_machines = "off"`** — critical, otherwise Fly kills the machine mid-task
-- Volume is single-attach (fine for 1 machine)
+- 1 machine (`performance-8x`, 16GB RAM) + 1 volume (10GB)
+- **`auto_stop_machines = "stop"`** with `min_machines_running = 0` — machine stops when idle (no connections), restarts on next request
+  - Billed per-second only while running. Stopped machine costs only rootfs + volume storage (~$2/mo idle)
+  - Cold start: ~300ms VM boot + ~20s app startup (opencode SQLite migration, etc.)
+  - SSE connections keep the machine alive while browser tab is open
+  - If machine stops mid-LLM-task, session is persisted in SQLite — prompt "keep going" to resume
+- Volume is single-attach, pinned to host — machine always restarts on the same host where the volume lives
 - Health check: `/admin/health` (sidecar) checks opencode liveness, unauthenticated in Caddy
   - No ongoing Fly health checks (too noisy for personal use)
   - `fly deploy` exits before the app is fully ready (~20s startup); rely on manual verification

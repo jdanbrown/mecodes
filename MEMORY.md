@@ -11,6 +11,12 @@
 - 2026-02-28 32452fe
 
 ## Memory log
+- [2026-03-13] Switched to on-demand machine: `performance-8x` with `auto_stop_machines = "stop"`, `min_machines_running = 0`
+  - Machine stops when Fly Proxy sees zero connections for a few minutes, restarts on next request (~20s cold start)
+  - SSE connections keep machine alive while browser tab is open
+  - Future: to keep machine alive for background LLM work after closing browser, two options:
+    - **Option A (recommended):** Self-stop via Machines API — set `auto_stop_machines = "off"`, sidecar tracks last activity + busy sessions, calls `POST http://_api.internal:4280/v1/apps/dancodes/machines/{FLY_MACHINE_ID}/stop` after configurable idle timeout. Needs `FLY_API_TOKEN` secret (`fly secrets set FLY_API_TOKEN="$(fly tokens deploy)"`)
+    - **Option B (hacky):** Self-ping — keep `auto_stop_machines = "stop"`, sidecar pings own public URL while sessions are busy to keep connections > 0. No extra secret needed but fragile.
 - [2026-03-04] Fly volume I/O stalls — pattern emerging, second incident
   - Symptoms all hit at once: multiple corrupt (empty) git objects, bash tool calls hanging (tsc/biome >2min timeout), page loads hanging
   - This time objects were empty files (not garbled like the inflate error on 03-03) — suggests writes acked but never flushed
