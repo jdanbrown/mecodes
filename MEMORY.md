@@ -11,20 +11,44 @@
 - 2026-02-28 32452fe
 
 ## Memory log
+- [2026-03-13] git corruption: Root cause analysis (fly volume durability) + fsync fix
+  - 3 incidents in 10 days
+    - Empty files where git object data should be, cascading corruption, random fs ops would hang (e.g. reads, `rm -rf`), volume IO stalled
+  - Root cause: git doesn't fsync by default, and non-fsync writes to fly volumes aren't durable
+    - Trusts `rename()` atomicity, which only protects against process crashes, not storage-layer write loss
+  - Fly VM migrations (deploys, size changes, maintenance) can lose in-flight writes
+    - Same class of bug as git-on-NFS and git-on-Docker-for-Mac
+  - Fix: Add git config `core.fsync all` + `core.fsyncMethod fsync` in Dockerfile
+    - Forces durable writes to structurally eliminate the failure mode
+  - Perf cost: ~0.1ms/fsync on NVMe
+    - Large git clones of ~100k objects will add ~10s overhead
+    - Small git ops are fine (e.g. git commit)
+  - Alternatives considered:
+    - Move repos to tmpfs and keep worktrees on volume
+      - Large repos would take 1m+ to clone on every app cold start
+      - Keep worktrees on volumes because they need to persist their dirty git changes on fs across service stop/restart
+    - `git gc` after every op
+      - Nope: Reduces probability of occurrence but doesn't structurally eliminate it
+    - Use tigris/s3 instead of fly volume
+      - Nope: They don't expose a posix fs interface, required by git
+  - Known triggers: VM size changes, `fly deploy`, possibly autostop/autostart
+  - Recovery:
+    - `find .git/objects -empty -delete`, `git fetch origin`, `git reset --hard origin/main`
+    - If IO is stalled, stop/restart machine first
 - [2026-03-13] Switched to on-demand machine: `performance-8x` with `auto_stop_machines = "stop"`, `min_machines_running = 0`
   - Machine stops when Fly Proxy sees zero connections for a few minutes, restarts on next request (~20s cold start)
   - SSE connections keep machine alive while browser tab is open
   - Future: to keep machine alive for background LLM work after closing browser, two options:
     - **Option A (recommended):** Self-stop via Machines API -- set `auto_stop_machines = "off"`, sidecar tracks last activity + busy sessions, calls `POST http://_api.internal:4280/v1/apps/dancodes/machines/{FLY_MACHINE_ID}/stop` after configurable idle timeout. Needs `FLY_API_TOKEN` secret (`fly secrets set FLY_API_TOKEN="$(fly tokens deploy)"`)
     - **Option B (hacky):** Self-ping -- keep `auto_stop_machines = "stop"`, sidecar pings own public URL while sessions are busy to keep connections > 0. No extra secret needed but fragile.
-- [2026-03-04] Fly volume IO stalls -- pattern emerging, second incident
+- [2026-03-04] git corruption: IO stalls, pattern emerging, second incident
   - Symptoms all hit at once: multiple corrupt (empty) git objects, bash tool calls hanging (tsc/biome >2min timeout), page loads hanging
   - This time objects were empty files (not garbled like the inflate error on 03-03) -- suggests writes acked but never flushed
   - Likely cause: Fly VM migration or volume detach/reattach. When the volume stalls, everything doing disk IO hangs simultaneously.
   - Fix is the same: delete corrupt objects with `python3 os.unlink()`, `git fetch origin`, and if HEAD is damaged `git reset --hard origin/main` to get back to a clean state
   - If you see bash tool calls hanging + page loads hanging at the same time, suspect a Fly volume stall -- don't waste time debugging code
   - Two incidents so far: 2026-03-03 (inflate error, single object), 2026-03-04 (empty files, multiple objects + hangs)
-- [2026-03-03] Corrupt git object on Fly volume -- `git fetch` failed with "inflate: data stream error"
+- [2026-03-03] git corruption: Corrupt git object on Fly volume -- `git fetch` failed with "inflate: data stream error"
   - A loose object in `/vol/projects/repos/.../.git/objects/` was corrupted (likely Fly volume fsync issue)
   - Fix: delete the corrupt file and re-fetch -- `python3 -c "import os; os.unlink('<path>')"` then `git fetch origin`
   - Don't use `rm` on git objects in this environment -- they're read-only (`-r--r--r--`) and `rm` hangs waiting for confirmation. Use `rm -f` or `python3 os.unlink()`

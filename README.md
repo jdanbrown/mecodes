@@ -117,6 +117,12 @@ Auto-generated OpenAPI docs at `/admin/docs`.
   - No ongoing Fly health checks (too noisy for personal use)
   - `fly deploy` exits before the app is fully ready (~20s startup); rely on manual verification
 
+### Volume durability
+- Fly volumes can lose in-flight writes during VM migrations (deploys, size changes, host maintenance)
+- Git is especially vulnerable -- it doesn't fsync by default, trusting `rename()` atomicity, which doesn't work when the storage layer drops buffered data
+- Fix: `core.fsync=all` in the Dockerfile forces git to fsync every write
+- See MEMORY.md for full analysis and alternatives considered
+
 ## Frontend
 
 ### Strategy: web first, iOS-native later (or never)

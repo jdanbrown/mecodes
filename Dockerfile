@@ -58,6 +58,13 @@ ARG GIT_SHA=dev
 ARG GIT_TIME=unknown
 RUN echo "$GIT_SHA" > /opt/dancodes/VERSION && echo "$GIT_TIME" > /opt/dancodes/VERSION_TIME
 
+# git config
+# - HACK fsync all git writes to avoid data loss when fly vms do weird vm things
+#   - Without this, we observed (3 times) that loose objects would occasionally get written as empty files, corrupting git
+#   - See MEMORY.md for details (2026-03-13, 2026-03-04, 2026-03-03)
+RUN git config --global core.fsync all \
+ && git config --global core.fsyncMethod fsync
+
 # Volume mount point
 RUN mkdir -p /vol/projects /vol/opencode-state
 
