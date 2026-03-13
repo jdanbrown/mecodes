@@ -1,39 +1,41 @@
 {
-  # Fly.io terminates TLS at the edge, so Caddy sees HTTP on :8080
-  auto_https off
+	# Fly.io terminates TLS at the edge, so Caddy sees HTTP on :8080
+	auto_https off
 }
 
 :8080 {
+	# Auth: cookie-based via sidecar's forward_auth check.
+	# Skip health check (Fly) and auth endpoints (login page + form submit).
+	@protected not path /admin/health /auth/*
+	forward_auth @protected localhost:4097 {
+		uri /auth/check
+	}
 
-  # Auth: cookie-based via sidecar's forward_auth check.
-  # Skip health check (Fly) and auth endpoints (login page + form submit).
-  @protected not path /admin/health /auth/*
-  forward_auth @protected localhost:4097 {
-    uri /auth/check
-  }
+	# Sidecar API (includes /auth/* and /admin/*)
+	handle /auth/* {
+		reverse_proxy localhost:4097
+	}
+	handle /admin/* {
+		reverse_proxy localhost:4097
+	}
 
-  # Sidecar API (includes /auth/* and /admin/*)
-  handle /auth/* {
-    reverse_proxy localhost:4097
-  }
-  handle /admin/* {
-    reverse_proxy localhost:4097
-  }
-
-  # Our frontend (static files), falling through to opencode API.
-  # try_files serves our file if it exists, otherwise proxies to opencode.
-  # This lets / serve our index.html while /session/*, /event, etc. reach the API.
-  # Unmatched paths (e.g. /session/abc) fall through to opencode, which proxies
-  # to app.opencode.ai — so the opencode web UI is available at any non-file path.
-  root * /opt/dancodes/frontend/dist
-  @static file {
-    try_files {path} {path}/index.html
-  }
-  handle @static {
-    file_server
-  }
-  handle {
-    reverse_proxy localhost:4096
-  }
-
+	# Our frontend (static files), falling through to opencode API.
+	# try_files serves our file if it exists, otherwise proxies to opencode.
+	# This lets / serve our index.html while /session/*, /event, etc. reach the API.
+	# Unmatched paths (e.g. /session/abc) fall through to opencode, which proxies
+	# to app.opencode.ai — so the opencode web UI is available at any non-file path.
+	root * /opt/dancodes/frontend/dist
+	@static file {
+		try_files {path} {path}/index.html
+	}
+	handle @static {
+		# no-cache on everything — reload after deploy always gets fresh files.
+		# Vite hashes JS/CSS filenames so browsers won't re-request those anyway
+		# (different filename = different URL = no cache hit to worry about).
+		header Cache-Control "no-cache"
+		file_server
+	}
+	handle {
+		reverse_proxy localhost:4096
+	}
 }
