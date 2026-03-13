@@ -19,15 +19,12 @@ echo_black_stderr "Start: run"
 APP_DIR='/opt/dancodes'
 
 # Ensure volume dirs exist
-mkdir -p /vol/projects/repos /vol/projects/worktrees /vol/opencode-state
+mkdir -p /vol/projects/repos /vol/projects/worktrees
 
 # CWD for opencode: intentionally invalid so any API call that forgets to pass
 # x-opencode-directory will fail loudly instead of silently using /opt/dancodes.
 OPENCODE_CWD='/tmp/opencode-no-project'
 mkdir -p "$OPENCODE_CWD"
-
-# Set HOME to worktrees dir so opencode's directory picker starts there
-export HOME=/vol/projects/worktrees
 
 # Write build version for the frontend to display
 GIT_SHA="$(cat "$APP_DIR/VERSION" 2>/dev/null || echo 'dev')"

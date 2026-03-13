@@ -35,7 +35,11 @@ show_cmd docker run \
     -e GITHUB_TOKEN="$GITHUB_TOKEN" \
     -e OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
     -e CONTEXT7_API_KEY="$CONTEXT7_API_KEY" \
-    -e XDG_DATA_HOME='/vol/opencode-state' \
+    -e XDG_DATA_HOME='/vol/xdg/data' \
+    -e XDG_STATE_HOME='/vol/xdg/state' \
+    -e XDG_CACHE_HOME='/vol/xdg/cache' \
+    -e XDG_CONFIG_HOME='/vol/xdg/config' \
+    -e OPENCODE_TEST_HOME='/vol/projects/worktrees' \
     -e OPENCODE_CONFIG='/opt/dancodes/opencode.json' \
     -w "$PWD" \
     ${DOCKER_OPTS:-} \

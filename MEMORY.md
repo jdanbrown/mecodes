@@ -11,11 +11,12 @@
 - 2026-02-28 32452fe
 
 ## Memory log
-- [2026-03-13] `OPENCODE_HOME` is not a real env var -- opencode ignores it
-  - Opencode uses `XDG_DATA_HOME` (or `$HOME/.local/share`) for its DB: `$XDG_DATA_HOME/opencode/opencode.db`
-  - We had `OPENCODE_HOME=/vol/opencode-state` which did nothing -- the DB was actually at `$HOME/.local/share/opencode/opencode.db`
-  - Since `HOME=/vol/projects/worktrees` (set in bin/run for the folder picker), the DB lived inside the worktrees dir and got wiped when we nuked worktrees
-  - Fix: set `XDG_DATA_HOME=/vol/opencode-state` in fly.toml instead
+- [2026-03-13] XDG dirs and HOME
+  - All four XDG vars explicitly set in fly.toml to `/vol/xdg/{data,state,cache,config}`
+  - DB lives at `/vol/xdg/data/opencode/opencode.db`
+  - We don't override `HOME` -- it stays as the system default (`/root`)
+  - Folder picker start dir: controlled via undocumented `OPENCODE_TEST_HOME` env var (may break on upgrade)
+  - `OPENCODE_HOME` is not a real env var -- opencode ignores it, uses XDG instead
 - [2026-03-13] git corruption: Root cause analysis (fly volume durability) + fsync fix
   - 3 incidents in 10 days
     - Empty files where git object data should be, cascading corruption, random fs ops would hang (e.g. reads, `rm -rf`), volume IO stalled
@@ -99,7 +100,7 @@
 - [2026-03-01] OpenCode serve gotchas
   - `--print-logs` required to see logs on stderr (otherwise logs go to `~/.local/share/opencode/log/` only)
   - Treats CWD as project root -- we now start it in `/tmp/opencode-no-project` so any request missing `x-opencode-directory` fails loudly
-  - `HOME` is used as starting dir for opencode web UI's "Open project" folder picker -- set it to `/vol/projects/worktrees` so worktrees are discoverable
+  - Folder picker start dir: uses `OPENCODE_TEST_HOME` (undocumented, may break). We no longer override `HOME`.
 - [2026-02-28] Replaced bun with real node in Dockerfile
   - Previously: bun installed, `ln -s bun node` to satisfy opencode's `#!/usr/bin/env node` shebang
   - Now: real node via nodesource apt repo, no bun -- same `node`/`npm`/`npx` commands in local dev and prod

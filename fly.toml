@@ -4,7 +4,15 @@ primary_region = "iad"
 [build]
 
 [env]
-  XDG_DATA_HOME = "/vol/opencode-state"
+  XDG_DATA_HOME = "/vol/xdg/data"
+  XDG_STATE_HOME = "/vol/xdg/state"
+  XDG_CACHE_HOME = "/vol/xdg/cache"
+  XDG_CONFIG_HOME = "/vol/xdg/config"
+  # Make app.opencode.ai's "Open project" folder picker start in our worktrees dir
+  # - This normally uses $HOME, but changing $HOME causes other problems (e.g. XDG dirs, and who knows what else)
+  # - HACK So instead we use this undocument $OPENCODE_TEST_HOME var, and if it ever changes then oh well
+  #   - https://github.com/anomalyco/opencode/blob/8bf06cb/packages/opencode/src/global/index.ts#L16
+  OPENCODE_TEST_HOME = "/vol/projects/worktrees"
   OPENCODE_CONFIG = "/opt/dancodes/opencode.json"
   GITHUB_USER = "jdanbrown"
 
