@@ -1,4 +1,5 @@
-.git
+# Don't exclude .git/ so that Dockerfile can use git to create version.json
+# .git
 *.md
 *.code-workspace
 __pycache__

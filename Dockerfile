@@ -53,10 +53,11 @@ RUN chmod a+x bin/*
 # Build frontend (Vite outputs to frontend/dist/)
 RUN npx vite build frontend/
 
-# Bake git version info (set by --build-arg in CI, defaults to 'dev')
-ARG GIT_SHA=dev
-ARG GIT_TIME=unknown
-RUN echo "$GIT_SHA" > /opt/dancodes/VERSION && echo "$GIT_TIME" > /opt/dancodes/VERSION_TIME
+# Create frontend/dist/version.json from git sha/time
+RUN printf '{"sha":"%s","time":"%s"}\n' \
+  "$(git rev-parse --short HEAD)" \
+  "$(git log -1 --format=%cI)" \
+  > frontend/dist/version.json
 
 # git config
 # - HACK fsync all git writes to avoid data loss when fly vms do weird vm things
