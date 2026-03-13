@@ -625,39 +625,39 @@ export async function initApp() {
   loadVersion();
   loadProviders();
 
-  // Restore last repo, but verify it still exists on the backend
+  // Always fetch cloned repos so the picker is populated
+  try {
+    const data = (await get("/admin/repos")) as { repos?: Repo[] };
+    state.clonedRepos = data?.repos ?? [];
+  } catch (e) {
+    console.warn("initApp: failed to load repos:", e);
+  }
+
+  // Pick repo: saved repo if still cloned, else auto-select if only one
   const savedRepo = loadLastRepo();
-  if (savedRepo) {
+  if (savedRepo && state.clonedRepos.find((r) => r.name === savedRepo.name)) {
     state.currentRepo = savedRepo;
-    emit();
+  } else if (state.clonedRepos.length === 1) {
+    state.currentRepo = state.clonedRepos[0];
+    saveLastRepo(state.clonedRepos[0]);
+  }
+  emit();
+
+  if (state.currentRepo) {
     try {
-      const data = (await get("/admin/repos")) as { repos?: Repo[] };
-      state.clonedRepos = data?.repos ?? [];
-      if (!state.clonedRepos.find((r) => r.name === savedRepo.name)) {
-        console.warn("initApp: saved repo no longer cloned, clearing:", savedRepo.name);
-        state.currentRepo = null;
-        emit();
-        return;
+      await loadSessions();
+      const savedSession = loadLastSession();
+      const sorted = sortedSessions();
+      const resumeId = sorted.find((s) => s.id === savedSession)?.id ?? sorted[0]?.id;
+      if (resumeId) {
+        await selectSession(resumeId);
+      } else {
+        await startNewSession();
       }
     } catch (e) {
-      console.warn("initApp: failed to load repos:", e);
+      console.warn("initApp: failed to load sessions:", e);
     }
-    if (state.currentRepo) {
-      try {
-        await loadSessions();
-        const savedSession = loadLastSession();
-        const sorted = sortedSessions();
-        const resumeId = sorted.find((s) => s.id === savedSession)?.id ?? sorted[0]?.id;
-        if (resumeId) {
-          await selectSession(resumeId);
-        } else {
-          await startNewSession();
-        }
-      } catch (e) {
-        console.warn("initApp: failed to load sessions:", e);
-      }
-      syncSSE();
-    }
+    syncSSE();
   }
   emit();
 }
