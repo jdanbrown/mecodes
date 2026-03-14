@@ -63,7 +63,7 @@ interface AppState {
 
   // UI
   sidebarOpen: boolean;
-  version: string | null;
+  version: { sha: string; time: string } | null;
   opencodeVersion: string | null;
 }
 
@@ -447,7 +447,7 @@ export async function loadVersion() {
   try {
     const r = await fetch("/version.json");
     const v = (await r.json()) as { sha: string; time: string };
-    state.version = `${v.sha} (${v.time})`;
+    state.version = { sha: v.sha, time: v.time };
     emit();
   } catch {
     // ignore

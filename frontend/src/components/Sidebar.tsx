@@ -15,7 +15,27 @@ export function Sidebar() {
       <div className="sidebar-footer">
         <div className="sidebar-footer-row">
           <div className="sidebar-footer-versions">
-            {version && <span className="sidebar-footer-version">dancodes {version}</span>}
+            {version && (
+              <span className="sidebar-footer-version">
+                <a
+                  className="sidebar-footer-link"
+                  href="https://github.com/jdanbrown/dancodes"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  dancodes
+                </a>{" "}
+                <a
+                  className="sidebar-footer-link"
+                  href={`https://github.com/jdanbrown/dancodes/commit/${version.sha}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {version.sha}
+                </a>{" "}
+                ({version.time})
+              </span>
+            )}
             {opencodeVersion && <span className="sidebar-footer-version">opencode {opencodeVersion}</span>}
             <a className="sidebar-footer-link" href="https://app.opencode.ai" target="_blank" rel="noreferrer">
               app.opencode.ai &#8599;
